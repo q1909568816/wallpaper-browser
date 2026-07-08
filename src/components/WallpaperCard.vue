@@ -1,5 +1,5 @@
 <template>
-  <div class="wallpaper-card" @click="openPreview">
+  <div class="wallpaper-card" ref="cardRef" :class="{ selected: selected }" @click="handleClick" @dblclick="handleDoubleClick">
     <div class="card-cover">
       <img
         :src="wallpaper.coverUrl"
@@ -7,33 +7,18 @@
         loading="lazy"
         @error="onImageError"
       />
-      <div class="card-overlay">
-        <div class="card-actions">
-          <button class="card-btn preview-btn" title="预览">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-          </button>
-          <button class="card-btn files-btn" title="查看文件" @click.stop="showFiles = !showFiles">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-              <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
-            </svg>
-          </button>
-        </div>
-      </div>
       <div class="card-category" v-if="wallpaper.category !== '其他'">
         {{ wallpaper.category }}
       </div>
-    </div>
-    <div class="card-info">
-      <h3 class="card-title" :title="wallpaper.name">{{ wallpaper.name }}</h3>
-      <div class="card-meta">
-        <span class="file-count">{{ wallpaper.files.length }} 个文件</span>
+      <div class="card-check" v-if="selected">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--accent)" stroke="white" stroke-width="2">
+          <path d="M20 6L9 17l-5-5"/>
+        </svg>
+      </div>
+      <div class="card-name-overlay">
+        <span class="card-title" :title="wallpaper.name">{{ wallpaper.name }}</span>
       </div>
     </div>
-    <!-- File list popup -->
     <div class="file-list-popup" v-if="showFiles" @click.stop>
       <div class="file-list-header">
         <span>文件列表</span>
@@ -54,24 +39,73 @@
 </template>
 
 <script setup lang="ts">
-import { ref, inject } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import type { WallpaperItem } from '../utils/wallpaperScanner'
 
 const props = defineProps<{
   wallpaper: WallpaperItem
+  selected: boolean
+}>()
+
+const emit = defineEmits<{
+  select: [wallpaper: WallpaperItem]
+  preview: [wallpaper: WallpaperItem]
 }>()
 
 const showFiles = ref(false)
-const setPreview = inject<(wp: WallpaperItem | null) => void>('setPreview')!
+const cardRef = ref<HTMLElement>()
+const loadedCover = ref(false)
+let observer: IntersectionObserver | null = null
 
-function openPreview() {
+async function loadCover() {
+  if (loadedCover.value) return
+  if (!props.wallpaper.coverFileHandle) return
+  try {
+    const file = await props.wallpaper.coverFileHandle.getFile()
+    props.wallpaper.coverUrl = URL.createObjectURL(file)
+    loadedCover.value = true
+  } catch {
+    // ignore
+  }
+}
+
+onMounted(() => {
+  if (props.wallpaper.coverUrl) {
+    loadedCover.value = true
+    return
+  }
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting) {
+        loadCover()
+        observer?.disconnect()
+        observer = null
+      }
+    },
+    { rootMargin: '200px' }
+  )
+  if (cardRef.value) {
+    observer.observe(cardRef.value)
+  }
+})
+
+onUnmounted(() => {
+  observer?.disconnect()
+  observer = null
+})
+
+function handleClick() {
   showFiles.value = false
-  setPreview(props.wallpaper)
+  emit('select', props.wallpaper)
+}
+
+function handleDoubleClick() {
+  emit('preview', props.wallpaper)
 }
 
 function onImageError(e: Event) {
   const img = e.target as HTMLImageElement
-  img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250" fill="%231b2838"><rect width="400" height="250"/><text x="200" y="130" text-anchor="middle" fill="%236c7a96" font-size="16" font-family="sans-serif">无封面</text></svg>')
+  img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250" fill="%23f2f2f2"><rect width="400" height="250"/><text x="200" y="130" text-anchor="middle" fill="%238a8a8a" font-size="16" font-family="sans-serif">无封面</text></svg>')
 }
 </script>
 
@@ -83,13 +117,18 @@ function onImageError(e: Event) {
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  border: 1px solid var(--border-dark);
+  border: 2px solid transparent;
 }
 
 .wallpaper-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(66, 135, 244, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  border-color: var(--border);
+}
+
+.wallpaper-card.selected {
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.2);
 }
 
 .card-cover {
@@ -113,93 +152,76 @@ function onImageError(e: Event) {
 .card-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(14, 20, 27, 0.8) 0%, transparent 50%);
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.7) 0%, transparent 40%);
   opacity: 0;
   transition: opacity 0.2s ease;
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  padding: 10px;
+  pointer-events: none;
 }
 
 .wallpaper-card:hover .card-overlay {
   opacity: 1;
 }
 
-.card-actions {
-  display: flex;
-  gap: 6px;
-}
-
-.card-btn {
-  width: 36px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 4px;
-  background: rgba(66, 135, 244, 0.2);
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  backdrop-filter: blur(8px);
-}
-
-.card-btn:hover {
-  background: var(--accent);
-  transform: scale(1.1);
-}
-
 .card-category {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  padding: 2px 8px;
-  font-size: 11px;
-  color: var(--text-primary);
-  background: rgba(66, 135, 244, 0.6);
+  top: 4px;
+  left: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  color: #ffffff;
+  background: rgba(0, 120, 212, 0.85);
   border-radius: 2px;
   backdrop-filter: blur(4px);
 }
 
-.card-info {
-  padding: 10px 12px 12px;
+.card-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 120, 212, 0.95);
+  border-radius: 3px;
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+}
+
+.card-name-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 20px 8px 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.6) 60%, transparent 100%);
+  max-height: 60%;
+  overflow: hidden;
 }
 
 .card-title {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
-  color: var(--text-primary);
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #ffffff;
   line-height: 1.4;
-}
-
-.card-meta {
-  margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.file-count {
-  font-size: 11px;
-  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
 .file-list-popup {
   position: absolute;
-  top: 100%;
+  bottom: 100%;
   left: 0;
   right: 0;
   z-index: 100;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
-  border-radius: 0 0 4px 4px;
-  box-shadow: 0 8px 24px rgba(66, 135, 244, 0.2);
+  border-radius: 4px 4px 0 0;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.1);
   max-height: 200px;
   overflow: hidden;
 }
@@ -208,8 +230,8 @@ function onImageError(e: Event) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  font-size: 12px;
+  padding: 6px 10px;
+  font-size: 11px;
   color: var(--text-secondary);
   background: var(--bg-hover-dark);
   border-bottom: 1px solid var(--border);
@@ -220,7 +242,7 @@ function onImageError(e: Event) {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
   padding: 0 4px;
 }
@@ -247,8 +269,8 @@ function onImageError(e: Event) {
 .file-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
+  gap: 6px;
+  padding: 5px 10px;
   font-size: 12px;
   color: var(--text-secondary);
 }

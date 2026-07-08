@@ -1,378 +1,475 @@
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" @click.self="$emit('close')">
-      <div class="modal-content">
-        <!-- Close button -->
-        <button class="modal-close" @click="$emit('close')">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 6L6 18M6 6l12 12"/>
-          </svg>
-        </button>
-
-        <!-- Preview area -->
-        <div class="preview-area">
-          <img
-            :src="currentPreviewUrl || wallpaper.coverUrl"
-            :alt="wallpaper.name"
-            class="preview-image"
-            @error="onPreviewError"
-          />
-          <!-- Navigation arrows -->
-          <button
-            v-if="wallpaper.files.length > 1 && currentFileIndex > 0"
-            class="nav-arrow nav-prev"
-            @click="prevFile"
-          >
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M15 18l-6-6 6-6"/>
-            </svg>
-          </button>
-          <button
-            v-if="wallpaper.files.length > 1 && currentFileIndex < imageFiles.length - 1"
-            class="nav-arrow nav-next"
-            @click="nextFile"
-          >
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 18l6-6-6-6"/>
-            </svg>
-          </button>
-        </div>
-
-        <!-- Info panel -->
-        <div class="info-panel">
-          <div class="info-header">
-            <div>
-              <h2 class="preview-title">{{ wallpaper.name }}</h2>
-              <span class="preview-category">{{ wallpaper.category }}</span>
-            </div>
-            <div class="info-stats">
-              <span>{{ imageFiles.length }} 张图片</span>
-              <span>{{ wallpaper.files.length }} 个文件</span>
-            </div>
-          </div>
-
-          <!-- File thumbnails -->
-          <div class="thumb-strip" v-if="imageFiles.length > 1">
-            <button
-              v-for="(file, idx) in imageFiles"
-              :key="file.name"
-              class="thumb-item"
-              :class="{ active: idx === currentFileIndex }"
-              @click="previewFile(file, idx)"
-            >
-              <img
-                :src="thumbUrlMap.get(file.name) || ''"
-                :alt="file.name"
-                loading="lazy"
-              />
+    <Transition name="preview">
+      <div v-if="visible" class="preview-modal" @click.self="$emit('close')">
+        <div class="preview-header">
+          <h3 class="preview-title">{{ title }}</h3>
+          <div class="preview-controls">
+            <button v-if="isImage" class="control-btn" @click="zoomOut" :disabled="scale <= 0.5">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <line x1="12" y1="5" x2="12" y2="19"/>
+              </svg>
+            </button>
+            <span v-if="isImage" class="scale-label">{{ Math.round(scale * 100) }}%</span>
+            <button v-if="isImage" class="control-btn" @click="zoomIn" :disabled="scale >= 3">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="5" x2="12" y2="19"/>
+                <line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+            </button>
+            <button v-if="isImage" class="control-btn" @click="resetZoom">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M15 9l-6 6M9 9l6 6"/>
+              </svg>
+            </button>
+            <button class="control-btn" @click="toggleFullscreen">
+              <svg v-if="!isFullscreen" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M7 14H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v2"/>
+                <path d="M17 10h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-2"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 3h6a2 2 0 0 1 2 2v6M9 21H3a2 2 0 0 1-2-2v-6"/>
+                <path d="M21 15v6a2 2 0 0 1-2 2h-6M3 9H9a2 2 0 0 1 2 2v6"/>
+              </svg>
+            </button>
+            <button class="close-btn" @click="$emit('close')">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
             </button>
           </div>
-
-          <!-- File list -->
-          <div class="modal-file-list">
-            <div class="modal-file-item" v-for="file in wallpaper.files" :key="file.name">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" class="file-icon">
-                <rect x="3" y="3" width="18" height="18" rx="2"/>
-                <circle cx="8.5" cy="8.5" r="1.5"/>
-                <path d="M21 15l-5-5L5 21"/>
+        </div>
+        <div class="preview-content">
+          <div v-if="previewUrl" class="preview-media">
+            <div v-if="isImage || isWeb" class="image-container" @wheel.prevent="handleWheel">
+              <img :src="previewUrl" class="preview-image" :style="imageStyle" alt="预览"/>
+            </div>
+            <video v-else-if="isVideo" ref="videoRef" :src="previewUrl" class="preview-video" controls autoplay loop/>
+            <div v-else class="preview-unsupported">
+              <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 8v4M12 16h.01"/>
               </svg>
-              <span class="file-name">{{ file.name }}</span>
+              <p>暂不支持此类型预览</p>
             </div>
           </div>
+          <div v-else class="preview-loading">
+            <div class="loading-spinner"></div>
+            <p>正在加载资源...</p>
+          </div>
+        </div>
+        <div class="preview-footer">
+          <span class="preview-type">{{ typeLabel }}</span>
+          <span class="preview-file">{{ fileName }}</span>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { computed, watch, ref, onMounted, onUnmounted } from 'vue'
 import type { WallpaperItem } from '../utils/wallpaperScanner'
-
-const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.svg']
+import { TYPE_LIST } from '../utils/wallpaperScanner'
 
 const props = defineProps<{
-  wallpaper: WallpaperItem
+  visible: boolean
+  wallpaper: WallpaperItem | null
+  file: FileSystemFileHandle | null
 }>()
 
 defineEmits<{
   close: []
 }>()
 
-const currentFileIndex = ref(0)
-const currentPreviewUrl = ref('')
-const thumbUrlMap = ref<Map<string, string>>(new Map())
+const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.svg']
+const VIDEO_EXTS = ['.mp4', '.mkv', '.webm', '.avi', '.mov']
+const WEB_EXTS = ['.html', '.htm']
 
-const imageFiles = computed(() => {
-  return props.wallpaper.files.filter(f =>
-    IMAGE_EXTS.some(ext => f.name.toLowerCase().endsWith(ext))
-  )
+const generatedUrl = ref('')
+const scale = ref(1)
+const isFullscreen = ref(false)
+const videoRef = ref<HTMLVideoElement | null>(null)
+
+const previewUrl = computed(() => {
+  if (generatedUrl.value) return generatedUrl.value
+  
+  if (!props.wallpaper) return ''
+  
+  let targetFile = props.file
+  
+  if (!targetFile) {
+    const mainFile = props.wallpaper.mainFile || props.wallpaper.previewFile
+    if (mainFile) {
+      targetFile = props.wallpaper.files.find(f => f.name.toLowerCase() === mainFile.toLowerCase())?.handle || null
+    }
+  }
+  
+  if (targetFile) {
+    try {
+      return URL.createObjectURL(targetFile.getFile())
+    } catch {
+      return ''
+    }
+  }
+  
+  if (props.wallpaper.coverUrl) {
+    return props.wallpaper.coverUrl
+  }
+  
+  return ''
 })
 
-function isImageFile(name: string): boolean {
-  const lower = name.toLowerCase()
-  return IMAGE_EXTS.some(ext => lower.endsWith(ext))
-}
+const imageStyle = computed(() => ({
+  transform: `scale(${scale.value})`,
+  transformOrigin: 'center center'
+}))
 
-async function loadThumbnails() {
-  thumbUrlMap.value.clear()
-  for (const file of imageFiles.value) {
+const title = computed(() => {
+  if (props.file) return props.file.name
+  return props.wallpaper?.name || ''
+})
+
+const fileName = computed(() => {
+  if (props.file) return props.file.name
+  return props.wallpaper?.mainFile || props.wallpaper?.previewFile || ''
+})
+
+const typeLabel = computed(() => {
+  if (!props.wallpaper) return ''
+  const type = TYPE_LIST.find(t => t.key === props.wallpaper?.type)
+  return type?.name || ''
+})
+
+const isImage = computed(() => {
+  const ext = fileName.value.toLowerCase()
+  return IMAGE_EXTS.some(e => ext.endsWith(e)) || (!props.file && props.wallpaper?.type === 'scene')
+})
+
+const isVideo = computed(() => {
+  const ext = fileName.value.toLowerCase()
+  return VIDEO_EXTS.some(e => ext.endsWith(e)) || (!props.file && props.wallpaper?.type === 'video')
+})
+
+const isWeb = computed(() => {
+  const ext = fileName.value.toLowerCase()
+  return WEB_EXTS.some(e => ext.endsWith(e)) || (!props.file && props.wallpaper?.type === 'web')
+})
+
+async function generateUrl() {
+  if (!props.visible || !props.wallpaper) {
+    generatedUrl.value = ''
+    return
+  }
+  
+  if (!props.file) {
+    if (props.wallpaper.type === 'web') {
+      generatedUrl.value = props.wallpaper.coverUrl || ''
+      return
+    }
+    
+    const mainFile = props.wallpaper.mainFile || props.wallpaper.previewFile
+    if (mainFile) {
+      const targetFile = props.wallpaper.files.find(f => f.name.toLowerCase() === mainFile.toLowerCase())?.handle || null
+      if (targetFile) {
+        try {
+          const file = await targetFile.getFile()
+          generatedUrl.value = URL.createObjectURL(file)
+        } catch {
+          generatedUrl.value = props.wallpaper.coverUrl || ''
+        }
+        return
+      }
+    }
+    
+    generatedUrl.value = props.wallpaper.coverUrl || ''
+    return
+  }
+  
+  if (props.file) {
     try {
-      const blob = await file.handle.getFile()
-      thumbUrlMap.value.set(file.name, URL.createObjectURL(blob))
+      const file = await props.file.getFile()
+      generatedUrl.value = URL.createObjectURL(file)
     } catch {
-      // Skip failed thumbnails
+      generatedUrl.value = props.wallpaper.coverUrl || ''
     }
   }
 }
 
-function previewFile(file: { name: string; handle: FileSystemFileHandle }, idx: number) {
-  currentFileIndex.value = idx
-  currentPreviewUrl.value = thumbUrlMap.value.get(file.name) || ''
+function zoomIn() {
+  scale.value = Math.min(3, scale.value + 0.25)
 }
 
-function nextFile() {
-  if (currentFileIndex.value < imageFiles.value.length - 1) {
-    currentFileIndex.value++
-    currentPreviewUrl.value = thumbUrlMap.value.get(imageFiles.value[currentFileIndex.value].name) || ''
+function zoomOut() {
+  scale.value = Math.max(0.5, scale.value - 0.25)
+}
+
+function resetZoom() {
+  scale.value = 1
+}
+
+function handleWheel(e: WheelEvent) {
+  const delta = e.deltaY > 0 ? -0.1 : 0.1
+  scale.value = Math.min(3, Math.max(0.5, scale.value + delta))
+}
+
+async function toggleFullscreen() {
+  const container = document.querySelector('.preview-modal')
+  if (!container) return
+  
+  if (!document.fullscreenElement) {
+    await container.requestFullscreen()
+    isFullscreen.value = true
+  } else {
+    await document.exitFullscreen()
+    isFullscreen.value = false
   }
 }
 
-function prevFile() {
-  if (currentFileIndex.value > 0) {
-    currentFileIndex.value--
-    currentPreviewUrl.value = thumbUrlMap.value.get(imageFiles.value[currentFileIndex.value].name) || ''
+function handleFullscreenChange() {
+  isFullscreen.value = !!document.fullscreenElement
+}
+
+watch(() => [props.visible, props.file, props.wallpaper], () => {
+  scale.value = 1
+  generateUrl()
+}, { immediate: true })
+
+function cleanup() {
+  if (generatedUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(generatedUrl.value)
+    generatedUrl.value = ''
   }
 }
 
-function onPreviewError(e: Event) {
-  const img = e.target as HTMLImageElement
-  img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="800" height="500" fill="%231b2838"><rect width="800" height="500"/><text x="400" y="260" text-anchor="middle" fill="%236c7a96" font-size="20" font-family="sans-serif">无法预览此文件</text></svg>')
-}
-
-function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') {
-    // Parent handles close
-  } else if (e.key === 'ArrowRight') {
-    nextFile()
-  } else if (e.key === 'ArrowLeft') {
-    prevFile()
+watch(() => props.visible, (val) => {
+  if (!val) {
+    cleanup()
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+    }
   }
-}
+})
 
 onMounted(() => {
-  loadThumbnails()
-  document.addEventListener('keydown', handleKeydown)
+  document.addEventListener('fullscreenchange', handleFullscreenChange)
 })
 
-watch(() => props.wallpaper.id, () => {
-  currentFileIndex.value = 0
-  currentPreviewUrl.value = ''
-  loadThumbnails()
-})
-
-import { onUnmounted } from 'vue'
 onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-  thumbUrlMap.value.forEach(url => URL.revokeObjectURL(url))
+  document.removeEventListener('fullscreenchange', handleFullscreenChange)
+  cleanup()
 })
 </script>
 
 <style scoped>
-.modal-overlay {
+.preview-modal {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgba(14, 20, 27, 0.9);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  backdrop-filter: blur(8px);
-}
-
-.modal-content {
-  position: relative;
-  width: 100%;
-  max-width: 1100px;
-  max-height: 90vh;
-  background: var(--bg-secondary);
-  border-radius: 4px;
-  overflow: hidden;
+  background: rgba(0, 0, 0, 0.95);
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(66, 135, 244, 0.3);
-  border: 1px solid var(--border);
 }
 
-.modal-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  z-index: 10;
-  width: 36px;
-  height: 36px;
+.preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  background: rgba(0, 0, 0, 0.8);
+  border-bottom: 1px solid var(--border);
+}
+
+.preview-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-btn {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
   border-radius: 4px;
-  background: rgba(66, 135, 244, 0.2);
-  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.modal-close:hover {
-  background: rgba(220, 50, 50, 0.8);
+.control-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
   color: var(--text-primary);
 }
 
-.preview-area {
-  position: relative;
-  background: var(--bg-tertiary);
+.control-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.scale-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 50px;
+  text-align: center;
+}
+
+.close-btn {
+  width: 32px;
+  height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
-  max-height: 60vh;
+  border: none;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255, 67, 67, 0.2);
+  color: #ff4343;
+}
+
+.preview-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.preview-media {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: grab;
+}
+
+.image-container:active {
+  cursor: grabbing;
 }
 
 .preview-image {
   max-width: 100%;
-  max-height: 60vh;
+  max-height: 100%;
   object-fit: contain;
+  transition: transform 0.2s ease;
 }
 
-.nav-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 44px;
-  height: 44px;
+.preview-video {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 4px;
+  background: #000;
+}
+
+.preview-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.preview-unsupported {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+}
+
+.preview-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.preview-footer {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
-  border-radius: 4px;
-  background: rgba(66, 135, 244, 0.3);
-  color: var(--text-primary);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  z-index: 5;
-}
-
-.nav-arrow:hover {
-  background: var(--accent);
-}
-
-.nav-prev { left: 12px; }
-.nav-next { right: 12px; }
-
-.info-panel {
-  padding: 16px 20px;
-  overflow-y: auto;
-  max-height: 30vh;
-}
-
-.info-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
   gap: 16px;
-  margin-bottom: 12px;
-}
-
-.preview-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-  margin: 0 0 4px;
-}
-
-.preview-category {
-  font-size: 12px;
-  color: var(--accent-light);
-  background: rgba(66, 135, 244, 0.15);
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-
-.info-stats {
-  display: flex;
-  gap: 12px;
-  font-size: 12px;
-  color: var(--text-muted);
-  flex-shrink: 0;
-  padding-top: 4px;
-}
-
-.thumb-strip {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 8px 0;
-  margin-bottom: 8px;
-}
-
-.thumb-strip::-webkit-scrollbar {
-  height: 4px;
-}
-
-.thumb-strip::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 2px;
-}
-
-.thumb-item {
-  width: 56px;
-  height: 36px;
-  flex-shrink: 0;
-  border: 2px solid transparent;
-  border-radius: 4px;
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--bg-tertiary);
-  padding: 0;
-  transition: border-color 0.15s ease;
-}
-
-.thumb-item.active {
-  border-color: var(--accent-light);
-}
-
-.thumb-item:hover {
-  border-color: var(--accent);
-}
-
-.thumb-item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.modal-file-list {
+  padding: 10px 20px;
+  background: rgba(0, 0, 0, 0.8);
   border-top: 1px solid var(--border);
-  padding-top: 8px;
 }
 
-.modal-file-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 0;
+.preview-type {
   font-size: 12px;
   color: var(--text-secondary);
+  padding: 3px 8px;
+  background: var(--bg-hover-dark);
+  border-radius: 3px;
 }
 
-.file-icon {
-  flex-shrink: 0;
-  opacity: 0.5;
+.preview-file {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
-.file-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.preview-enter-active,
+.preview-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.preview-enter-from,
+.preview-leave-to {
+  opacity: 0;
+}
+
+:deep(.preview-modal:fullscreen) {
+  background: #000;
+}
+
+:deep(.preview-modal:fullscreen) .preview-header,
+:deep(.preview-modal:fullscreen) .preview-footer {
+  background: rgba(0, 0, 0, 0.9);
 }
 </style>

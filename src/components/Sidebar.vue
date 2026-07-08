@@ -1,20 +1,21 @@
 <template>
-  <aside class="sidebar">
-    <div class="sidebar-header">
+  <aside class="sidebar" :class="{ collapsed: collapsed }">
+
+    <div class="sidebar-header" v-show="!collapsed">
       <div class="logo">
         <svg viewBox="0 0 24 24" width="28" height="28" fill="none">
-          <rect x="2" y="3" width="20" height="15" rx="2" fill="#4287f5"/>
-          <rect x="6" y="18" width="4" height="3" rx="0.5" fill="#2a475e"/>
-          <rect x="14" y="18" width="4" height="3" rx="0.5" fill="#2a475e"/>
-          <rect x="5" y="21" width="14" height="1" rx="0.5" fill="#1a3344"/>
-          <path d="M7 10l3-3 2 2 4-4 3 3v3H7v-1z" fill="#5db85d" opacity="0.8"/>
-          <circle cx="9" cy="7.5" r="1.5" fill="#ffcc33"/>
+          <rect x="2" y="3" width="20" height="15" rx="2" fill="#0078d4"/>
+          <rect x="6" y="18" width="4" height="3" rx="0.5" fill="#005a9e"/>
+          <rect x="14" y="18" width="4" height="3" rx="0.5" fill="#005a9e"/>
+          <rect x="5" y="21" width="14" height="1" rx="0.5" fill="#004578"/>
+          <path d="M7 10l3-3 2 2 4-4 3 3v3H7v-1z" fill="#107c10" opacity="0.8"/>
+          <circle cx="9" cy="7.5" r="1.5" fill="#ffaa44"/>
         </svg>
         <span class="logo-text">壁纸浏览器</span>
       </div>
     </div>
 
-    <div class="sidebar-content">
+    <div class="sidebar-content" v-show="!collapsed">
       <div v-if="rootDirName" class="current-dir-wrap">
         <div class="current-dir" :title="rootDirName">
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
@@ -25,57 +26,103 @@
       </div>
 
       <div class="filter-section">
-        <button class="section-header" @click="typeCollapsed = !typeCollapsed">
-          <span class="section-label">类型</span>
+        <button class="section-header" @click="sections.ratingCollapsed = !sections.ratingCollapsed">
+          <span class="section-label">年龄分级</span>
           <svg
             viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
-            :style="{ transform: typeCollapsed ? 'rotate(-90deg)' : 'rotate(0)' }"
+            :style="{ transform: sections.ratingCollapsed ? 'rotate(-90deg)' : 'rotate(0)' }"
           >
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
-        <div v-show="!typeCollapsed" class="section-items">
-          <button
-            v-for="t in typeItems"
-            :key="t.key"
-            class="nav-item"
-            :class="{ active: isTypeSelected(t.key) }"
-            @click="toggleType(t.key)"
-          >
-            <span class="nav-icon">{{ t.icon }}</span>
-            <span class="nav-label">{{ t.name }}</span>
-            <span class="nav-count">{{ t.count }}</span>
-          </button>
+        <div v-show="!sections.ratingCollapsed" class="section-items">
+          <label class="filter-item" v-for="rating in contentRatings" :key="rating.name">
+            <input
+              type="checkbox"
+              :checked="isContentRatingSelected(rating.name)"
+              @change="toggleContentRating(rating.name)"
+            />
+            <span class="filter-icon">📋</span>
+            <span class="filter-label">{{ rating.name }}</span>
+            <span class="filter-count">{{ rating.count }}</span>
+          </label>
         </div>
       </div>
 
       <div class="filter-section">
-        <button class="section-header" @click="categoryCollapsed = !categoryCollapsed">
-          <span class="section-label">分类</span>
+        <button class="section-header" @click="sections.typeCollapsed = !sections.typeCollapsed">
+          <span class="section-label">类型</span>
           <svg
             viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
-            :style="{ transform: categoryCollapsed ? 'rotate(-90deg)' : 'rotate(0)' }"
+            :style="{ transform: sections.typeCollapsed ? 'rotate(-90deg)' : 'rotate(0)' }"
           >
             <polyline points="6 9 12 15 18 9"/>
           </svg>
         </button>
-        <div v-show="!categoryCollapsed" class="section-items">
-          <button
-            v-for="cat in categories"
-            :key="cat.name"
-            class="nav-item"
-            :class="{ active: isCategorySelected(cat.name) }"
-            @click="toggleCategory(cat.name)"
+        <div v-show="!sections.typeCollapsed" class="section-items">
+          <label class="filter-item" v-for="t in typeItems" :key="t.key">
+            <input
+              type="checkbox"
+              :checked="isTypeSelected(t.key)"
+              @change="toggleType(t.key)"
+            />
+            <span class="filter-icon">{{ t.icon }}</span>
+            <span class="filter-label">{{ t.name }}</span>
+            <span class="filter-count">{{ t.count }}</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <button class="section-header" @click="sections.categoryCollapsed = !sections.categoryCollapsed">
+          <span class="section-label">分类</span>
+          <svg
+            viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+            :style="{ transform: sections.categoryCollapsed ? 'rotate(-90deg)' : 'rotate(0)' }"
           >
-            <span class="nav-icon">{{ cat.icon }}</span>
-            <span class="nav-label">{{ cat.name }}</span>
-            <span class="nav-count">{{ cat.count }}</span>
-          </button>
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div v-show="!sections.categoryCollapsed" class="section-items">
+          <label class="filter-item" v-for="cat in categories" :key="cat.name">
+            <input
+              type="checkbox"
+              :checked="isCategorySelected(cat.name)"
+              @change="toggleCategory(cat.name)"
+            />
+            <span class="filter-icon">{{ cat.icon }}</span>
+            <span class="filter-label">{{ cat.name }}</span>
+            <span class="filter-count">{{ cat.count }}</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="filter-section">
+        <button class="section-header" @click="sections.tagCollapsed = !sections.tagCollapsed">
+          <span class="section-label">标签</span>
+          <svg
+            viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"
+            :style="{ transform: sections.tagCollapsed ? 'rotate(-90deg)' : 'rotate(0)' }"
+          >
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </button>
+        <div v-show="!sections.tagCollapsed" class="section-items">
+          <label class="filter-item" v-for="tag in tags" :key="tag.name">
+            <input
+              type="checkbox"
+              :checked="isTagSelected(tag.name)"
+              @change="toggleTag(tag.name)"
+            />
+            <span class="filter-icon">🏷️</span>
+            <span class="filter-label">{{ tag.name }}</span>
+            <span class="filter-count">{{ tag.count }}</span>
+          </label>
         </div>
       </div>
     </div>
 
-    <div class="sidebar-footer">
+    <div class="sidebar-footer" v-show="!collapsed">
       <button class="btn-open-dir" @click="$emit('openDirectory')">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
@@ -87,27 +134,41 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, reactive } from 'vue'
 import type { CategoryInfo, WallpaperType } from '../utils/wallpaperScanner'
 import { TYPE_LIST } from '../utils/wallpaperScanner'
 
 const props = defineProps<{
   categories: CategoryInfo[]
+  tags: { name: string; count: number }[]
+  contentRatings: { name: string; count: number }[]
   selectedCategories: string[]
+  selectedTags: string[]
   selectedTypes: (WallpaperType | 'all')[]
+  selectedContentRatings: string[]
   rootDirName: string
   wallpaperCount: number
   typeCounts: Record<WallpaperType | 'all', number>
+  collapsed: boolean
 }>()
 
 const emit = defineEmits<{
   selectCategory: [cats: string[]]
   selectType: [types: (WallpaperType | 'all')[]]
+  selectTag: [tags: string[]]
+  selectContentRating: [ratings: string[]]
   openDirectory: []
+  toggleCollapsed: []
 }>()
 
-const typeCollapsed = ref(false)
-const categoryCollapsed = ref(false)
+const sections = reactive({
+  typeCollapsed: false,
+  categoryCollapsed: false,
+  tagCollapsed: false,
+  ratingCollapsed: false
+})
+
+const tagList = computed(() => props.tags.map(t => t.name))
 
 const typeItems = computed(() => {
   return TYPE_LIST.map(t => ({
@@ -122,6 +183,10 @@ function isTypeSelected(key: WallpaperType | 'all'): boolean {
 
 function isCategorySelected(name: string): boolean {
   return props.selectedCategories.includes(name)
+}
+
+function isTagSelected(tag: string): boolean {
+  return props.selectedTags.includes(tag)
 }
 
 function toggleType(key: WallpaperType | 'all') {
@@ -169,6 +234,32 @@ function toggleCategory(name: string) {
 
   emit('selectCategory', next)
 }
+
+function toggleTag(tag: string) {
+  const current = [...props.selectedTags]
+  const idx = current.indexOf(tag)
+  if (idx >= 0) {
+    current.splice(idx, 1)
+  } else {
+    current.push(tag)
+  }
+  emit('selectTag', current)
+}
+
+function isContentRatingSelected(name: string): boolean {
+  return props.selectedContentRatings.includes(name)
+}
+
+function toggleContentRating(name: string) {
+  const current = [...props.selectedContentRatings]
+  const idx = current.indexOf(name)
+  if (idx >= 0) {
+    current.splice(idx, 1)
+  } else {
+    current.push(name)
+  }
+  emit('selectContentRating', current)
+}
 </script>
 
 <style scoped>
@@ -181,6 +272,14 @@ function toggleCategory(name: string) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+  transition: width 0.25s ease, min-width 0.25s ease;
+}
+
+.sidebar.collapsed {
+  width: 0;
+  min-width: 0;
+  border-right: none;
 }
 
 .sidebar-header {
@@ -287,60 +386,45 @@ function toggleCategory(name: string) {
   padding: 0 4px;
 }
 
-.nav-item {
+.filter-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 13px;
+  gap: 8px;
+  padding: 6px 10px;
   cursor: pointer;
   border-radius: 4px;
-  transition: all 0.15s ease;
-  text-align: left;
-  position: relative;
+  transition: background 0.15s ease;
+  user-select: none;
 }
 
-.nav-item:hover {
+.filter-item:hover {
   background: var(--bg-hover);
-  color: var(--text-primary);
 }
 
-.nav-item.active {
-  background: rgba(66, 135, 244, 0.15);
-  color: var(--accent-light);
+.filter-item input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--accent);
 }
 
-.nav-item.active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 3px;
-  height: 16px;
-  background: var(--accent);
-  border-radius: 0 2px 2px 0;
-}
-
-.nav-icon {
-  width: 20px;
+.filter-icon {
+  width: 16px;
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 
-.nav-label {
+.filter-label {
   flex: 1;
+  font-size: 12px;
+  color: var(--text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.nav-count {
+.filter-count {
   font-size: 11px;
   color: var(--text-muted);
   background: var(--bg-hover-dark);
@@ -349,11 +433,6 @@ function toggleCategory(name: string) {
   min-width: 20px;
   text-align: center;
   flex-shrink: 0;
-}
-
-.nav-item.active .nav-count {
-  color: var(--accent-light);
-  background: rgba(66, 135, 244, 0.15);
 }
 
 .sidebar-footer {
@@ -378,8 +457,8 @@ function toggleCategory(name: string) {
 }
 
 .btn-open-dir:hover {
-  background: rgba(66, 135, 244, 0.1);
+  background: rgba(0, 120, 212, 0.08);
   border-color: var(--accent);
-  color: var(--accent-light);
+  color: var(--accent);
 }
 </style>
