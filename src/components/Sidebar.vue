@@ -147,7 +147,6 @@ const props = defineProps<{
   selectedTypes: (WallpaperType | 'all')[]
   selectedContentRatings: string[]
   rootDirName: string
-  wallpaperCount: number
   typeCounts: Record<WallpaperType | 'all', number>
   collapsed: boolean
 }>()
@@ -158,7 +157,6 @@ const emit = defineEmits<{
   selectTag: [tags: string[]]
   selectContentRating: [ratings: string[]]
   openDirectory: []
-  toggleCollapsed: []
 }>()
 
 const sections = reactive({
@@ -167,8 +165,6 @@ const sections = reactive({
   tagCollapsed: false,
   ratingCollapsed: false
 })
-
-const tagList = computed(() => props.tags.map(t => t.name))
 
 const typeItems = computed(() => {
   return TYPE_LIST.map(t => ({

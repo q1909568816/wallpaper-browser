@@ -63,13 +63,6 @@ export interface ProjectJson {
   workshopurl?: string
 }
 
-export interface TypeInfo {
-  key: WallpaperType | 'all'
-  name: string
-  icon: string
-  count: number
-}
-
 export const TYPE_LIST: { key: WallpaperType | 'all'; name: string; icon: string }[] = [
   { key: 'all', name: '全部', icon: '🗂️' },
   { key: 'scene', name: '场景', icon: '🌄' },
@@ -305,49 +298,6 @@ function isApplicationFile(name: string): boolean {
   return lower.endsWith('.exe') || lower.endsWith('.pkg')
 }
 
-async function inferWallpaperType(
-  dirHandle: FileSystemDirectoryHandle,
-  hasVideo: boolean
-): Promise<WallpaperType> {
-  let hasWeb = false
-  let hasApp = false
-  let hasImage = false
-
-  try {
-    for await (const [name, handle] of dirHandle.entries()) {
-      if (handle.kind === 'file') {
-        if (isWebFile(name)) hasWeb = true
-        if (isApplicationFile(name)) hasApp = true
-        if (isImageFile(name)) hasImage = true
-      }
-    }
-  } catch {
-    // ignore
-  }
-
-  // Also check project.json type
-  try {
-    const projectFile = await (dirHandle as any).getFileHandle('project.json')
-    const file = await projectFile.getFile()
-    const text = await file.text()
-    const data = JSON.parse(text)
-    if (data.type) {
-      const typeLower = String(data.type).toLowerCase()
-      if (typeLower.includes('video')) return 'video'
-      if (typeLower.includes('web') || typeLower.includes('html')) return 'web'
-      if (typeLower.includes('application') || typeLower.includes('app') || typeLower.includes('exe')) return 'application'
-      if (typeLower.includes('scene')) return 'scene'
-    }
-  } catch {
-    // ignore
-  }
-
-  if (hasApp) return 'application'
-  if (hasWeb) return 'web'
-  if (hasVideo) return 'video'
-  return 'scene'
-}
-
 // Priority for cover image: cover.png/jpg > preview.png/jpg > thumbnail > folder.jpg > first image
 function coverPriority(name: string): number {
   const lower = name.toLowerCase()
@@ -361,8 +311,6 @@ function coverPriority(name: string): number {
   if (isImageFile(name)) return 1
   return 0
 }
-
-let scanCounter = 0
 
 // Try to get last modified time from project.json or file entries
 async function getFolderModifiedTime(dirHandle: FileSystemDirectoryHandle): Promise<number> {
@@ -495,7 +443,7 @@ async function scanDirectory(dirHandle: FileSystemDirectoryHandle): Promise<void
 
   scheduleBackgroundLoad(scanned)
 
-  const rootWallpaper = await scanWallpaperDir(dirHandle.name, dirHandle, true)
+  const rootWallpaper = await scanWallpaperDir(dirHandle.name, dirHandle)
   if (rootWallpaper && allSubdirs.length === 0) {
     if (!scanned.has(rootWallpaper.folderName)) {
       scanned.set(rootWallpaper.folderName, rootWallpaper)
@@ -591,26 +539,20 @@ function saveWallpaperCache(): void {
         handleMap.set(subdir.name, subdir.handle)
       }
       await cacheDirectoryHandles(handleMap)
-
-      if (workshopContentHandle && state.wallpapers.length === allSubdirs.length) {
-        await doIncrementalSync(workshopContentHandle)
-      }
     } catch { /* ignore */ }
     cacheSaveScheduled = false
-  })
-}
 
-export function loadPage(page: number) {
-  state.currentPage = page
+    if (workshopContentHandle && state.wallpapers.length === allSubdirs.length) {
+      await doIncrementalSync(workshopContentHandle)
+    }
+  })
 }
 
 async function scanWallpaperDir(
   folderName: string,
-  dirHandle: FileSystemDirectoryHandle,
-  isRoot = false
+  dirHandle: FileSystemDirectoryHandle
 ): Promise<WallpaperItem | null> {
   let files: { name: string; handle: FileSystemFileHandle; priority: number }[] = []
-  let hasMedia = false
   let hasVideo = false
   let hasWeb = false
   let hasApp = false
@@ -650,7 +592,6 @@ async function scanWallpaperDir(
     const isImage = isImageFile(f.name)
     const isVideo = isVideoFile(f.name)
     if (isImage || isVideo) {
-      hasMedia = true
       if (isVideo) hasVideo = true
       files.push({
         name: f.name,

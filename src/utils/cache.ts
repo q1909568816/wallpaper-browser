@@ -142,11 +142,13 @@ export async function clearCache(): Promise<void> {
   try {
     const database = await openDB()
     return new Promise((resolve, reject) => {
-      const transaction = database.transaction([STORE_NAME], 'readwrite')
+      const transaction = database.transaction([STORE_NAME, HANDLES_STORE], 'readwrite')
       const store = transaction.objectStore(STORE_NAME)
-      const request = store.clear()
-      request.onerror = () => reject(request.error)
-      request.onsuccess = () => resolve()
+      const handlesStore = transaction.objectStore(HANDLES_STORE)
+      store.clear()
+      handlesStore.clear()
+      transaction.onerror = () => reject(transaction.error)
+      transaction.oncomplete = () => resolve()
     })
   } catch {
   }

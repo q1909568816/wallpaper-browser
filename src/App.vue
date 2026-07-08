@@ -9,7 +9,6 @@
       :selectedTypes="state.selectedTypes"
       :selectedContentRatings="state.selectedContentRatings"
       :rootDirName="state.rootDirName"
-      :wallpaperCount="state.wallpapers.length"
       :typeCounts="typeCounts"
       :collapsed="sidebarCollapsed"
       @select-category="handleSelectCategories"
@@ -17,7 +16,6 @@
       @select-tag="handleSelectTags"
       @select-content-rating="handleSelectContentRatings"
       @open-directory="openDirectory"
-      @toggle-collapsed="toggleSidebar"
     />
 
     <main class="main-content">
@@ -140,7 +138,8 @@
             />
           </div>
 
-          <div class="pagination" v-if="totalPages > 1">
+          <div class="pagination" v-if="state.wallpapers.length > 0">
+            <template v-if="totalPages > 1">
             <button
               class="page-btn"
               :disabled="currentPage === 1"
@@ -184,11 +183,13 @@
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
             </button>
+            </template>
             <div class="page-size-selector">
               <span>每页</span>
               <select v-model.number="pageSize" @change="onPageSizeChange">
                 <option :value="12">12</option>
                 <option :value="24">24</option>
+                <option :value="30">30</option>
                 <option :value="48">48</option>
                 <option :value="96">96</option>
               </select>
@@ -317,10 +318,7 @@ const sidebarCollapsed = ref(false)
 const sortLabels: Record<string, string> = {
   'name': '名称',
   'date': '订阅日期',
-  'category': '分类',
-  'rating': '分级',
-  'size': '文件大小',
-  'recent': '最近更新'
+  'category': '分类'
 }
 const showSortDropdown = ref(false)
 const sortDropdownRef = ref<HTMLElement | null>(null)
@@ -459,7 +457,7 @@ function onPageSizeChange() {
   currentPage.value = 1
 }
 
-watch([() => state.searchQuery, () => state.currentCategory, () => state.sortBy, () => state.sortAsc], () => {
+watch([() => state.searchQuery, () => state.sortBy, () => state.sortAsc], () => {
   currentPage.value = 1
 })
 

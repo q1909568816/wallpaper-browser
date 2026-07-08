@@ -41,38 +41,6 @@ async function openDB(): Promise<IDBDatabase> {
   })
 }
 
-export async function getWorkshopMetadata(workshopId: string): Promise<WorkshopMetadata | null> {
-  try {
-    const database = await openDB()
-    return new Promise((resolve, reject) => {
-      const tx = database.transaction([STORE_NAME], 'readonly')
-      const req = tx.objectStore(STORE_NAME).get(workshopId)
-      req.onsuccess = () => resolve(req.result || null)
-      req.onerror = () => reject(req.error)
-    })
-  } catch {
-    return null
-  }
-}
-
-export async function getBulkWorkshopMetadata(workshopIds: string[]): Promise<Map<string, WorkshopMetadata>> {
-  const result = new Map<string, WorkshopMetadata>()
-  try {
-    const database = await openDB()
-    const tx = database.transaction([STORE_NAME], 'readonly')
-    const store = tx.objectStore(STORE_NAME)
-    for (const id of workshopIds) {
-      const req = store.get(id)
-      const meta = await new Promise<WorkshopMetadata | null>((resolve) => {
-        req.onsuccess = () => resolve(req.result || null)
-        req.onerror = () => resolve(null)
-      })
-      if (meta) result.set(id, meta)
-    }
-  } catch { /* ignore */ }
-  return result
-}
-
 export async function storeWorkshopMetadata(metadataList: WorkshopMetadata[]): Promise<void> {
   try {
     const database = await openDB()
