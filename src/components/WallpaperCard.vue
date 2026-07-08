@@ -78,23 +78,25 @@ function onImageError(e: Event) {
 <style scoped>
 .wallpaper-card {
   position: relative;
-  background: #1e3048;
-  border-radius: 8px;
+  background: var(--bg-card);
+  border-radius: 4px;
   overflow: hidden;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  border: 1px solid var(--border-dark);
 }
 
 .wallpaper-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+  box-shadow: 0 8px 24px rgba(66, 135, 244, 0.3);
+  border-color: var(--accent);
 }
 
 .card-cover {
   position: relative;
   aspect-ratio: 16 / 10;
   overflow: hidden;
-  background: #162236;
+  background: var(--bg-tertiary);
 }
 
 .card-cover img {
@@ -111,7 +113,7 @@ function onImageError(e: Event) {
 .card-overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%);
+  background: linear-gradient(to top, rgba(14, 20, 27, 0.8) 0%, transparent 50%);
   opacity: 0;
   transition: opacity 0.2s ease;
   display: flex;
@@ -136,16 +138,16 @@ function onImageError(e: Event) {
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.15);
-  color: #fff;
+  border-radius: 4px;
+  background: rgba(66, 135, 244, 0.2);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.15s ease;
   backdrop-filter: blur(8px);
 }
 
 .card-btn:hover {
-  background: rgba(74, 144, 217, 0.8);
+  background: var(--accent);
   transform: scale(1.1);
 }
 
@@ -155,9 +157,9 @@ function onImageError(e: Event) {
   left: 8px;
   padding: 2px 8px;
   font-size: 11px;
-  color: #fff;
-  background: rgba(0,0,0,0.6);
-  border-radius: 4px;
+  color: var(--text-primary);
+  background: rgba(66, 135, 244, 0.6);
+  border-radius: 2px;
   backdrop-filter: blur(4px);
 }
 
@@ -168,7 +170,7 @@ function onImageError(e: Event) {
 .card-title {
   font-size: 13px;
   font-weight: 500;
-  color: #c7d5e0;
+  color: var(--text-primary);
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -185,7 +187,7 @@ function onImageError(e: Event) {
 
 .file-count {
   font-size: 11px;
-  color: #6c7a96;
+  color: var(--text-muted);
 }
 
 .file-list-popup {
@@ -194,10 +196,10 @@ function onImageError(e: Event) {
   left: 0;
   right: 0;
   z-index: 100;
-  background: #1b2838;
-  border: 1px solid #2a3f55;
-  border-radius: 0 0 8px 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 8px 24px rgba(66, 135, 244, 0.2);
   max-height: 200px;
   overflow: hidden;
 }
@@ -208,15 +210,15 @@ function onImageError(e: Event) {
   justify-content: space-between;
   padding: 8px 12px;
   font-size: 12px;
-  color: #8f98a0;
-  background: rgba(255,255,255,0.03);
-  border-bottom: 1px solid #2a3f55;
+  color: var(--text-secondary);
+  background: var(--bg-hover-dark);
+  border-bottom: 1px solid var(--border);
 }
 
 .file-list-header button {
   background: none;
   border: none;
-  color: #6c7a96;
+  color: var(--text-muted);
   cursor: pointer;
   font-size: 18px;
   line-height: 1;
@@ -224,7 +226,7 @@ function onImageError(e: Event) {
 }
 
 .file-list-header button:hover {
-  color: #c7d5e0;
+  color: var(--text-primary);
 }
 
 .file-list-body {
@@ -238,7 +240,7 @@ function onImageError(e: Event) {
 }
 
 .file-list-body::-webkit-scrollbar-thumb {
-  background: #2a3f55;
+  background: var(--border);
   border-radius: 2px;
 }
 
@@ -248,11 +250,11 @@ function onImageError(e: Event) {
   gap: 8px;
   padding: 6px 12px;
   font-size: 12px;
-  color: #8f98a0;
+  color: var(--text-secondary);
 }
 
 .file-item:hover {
-  background: rgba(255,255,255,0.03);
+  background: var(--bg-hover);
 }
 
 .file-icon {

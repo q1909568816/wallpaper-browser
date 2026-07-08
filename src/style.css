@@ -1,6 +1,6 @@
 /* ========================================
    Wallpaper Browser - Global Styles
-   Dark theme inspired by Wallpaper Engine
+   Steam/Wallpaper Engine Workshop Theme
    ======================================== */
 
 * {
@@ -10,19 +10,36 @@
 }
 
 :root {
-  --bg-primary: #0d1b2a;
-  --bg-secondary: #1b2838;
-  --bg-card: #1e3048;
-  --bg-hover: rgba(255, 255, 255, 0.06);
-  --text-primary: #c7d5e0;
-  --text-secondary: #8f98a0;
-  --text-muted: #6c7a96;
-  --accent: #4a90d9;
+  /* Steam Workshop 深蓝灰色主题 */
+  --bg-primary: #1b2838;
+  --bg-secondary: #16202b;
+  --bg-tertiary: #0e141b;
+  --bg-card: #1e3a4d;
+  --bg-hover: rgba(66, 133, 244, 0.08);
+  --bg-hover-dark: rgba(255, 255, 255, 0.04);
+
+  /* 文字颜色 */
+  --text-primary: #ffffff;
+  --text-secondary: #c6d4df;
+  --text-muted: #8f98a0;
+  --text-dark: #67c1f5;
+
+  /* Steam 蓝色强调色 */
+  --accent: #4287f5;
   --accent-hover: #5ba0e9;
-  --border: #2a3f55;
-  --border-light: #344d66;
+  --accent-dark: #2a475e;
+  --accent-light: #67c1f5;
+
+  /* 边框和分隔线 */
+  --border: #2a475e;
+  --border-light: #3d5a80;
+  --border-dark: #1a2a3a;
+
+  /* 功能色 */
   --danger: #dc3232;
   --success: #5db85d;
+  --warning: #ffcc00;
+
   --sidebar-width: 260px;
 }
 
@@ -375,21 +392,21 @@ body {
   margin-top: 12px;
   padding: 14px 28px;
   border: none;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #4a90d9 0%, #357abd 100%);
+  border-radius: 4px;
+  background: linear-gradient(to right, #47bfff 0%, #1a44c2 60%);
   color: #fff;
   font-size: 15px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 16px rgba(74, 144, 217, 0.3);
+  box-shadow: 0 0 12px rgba(66, 133, 244, 0.4);
 }
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(74, 144, 217, 0.4);
-  background: linear-gradient(135deg, #5ba0e9 0%, #4a90d9 100%);
+  box-shadow: 0 0 20px rgba(66, 133, 244, 0.6);
+  background: linear-gradient(to right, #67c1f5 0%, #2a475e 100%);
 }
 
 .btn-primary:active {

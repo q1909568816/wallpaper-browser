@@ -71,8 +71,8 @@ defineEmits<{
   width: 260px;
   min-width: 260px;
   height: 100vh;
-  background: #1b2838;
-  border-right: 1px solid #2a3f55;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -80,7 +80,7 @@ defineEmits<{
 
 .sidebar-header {
   padding: 20px 16px;
-  border-bottom: 1px solid #2a3f55;
+  border-bottom: 1px solid var(--border);
 }
 
 .logo {
@@ -92,7 +92,7 @@ defineEmits<{
 .logo-text {
   font-size: 16px;
   font-weight: 700;
-  color: #c7d5e0;
+  color: var(--text-primary);
   letter-spacing: 0.5px;
 }
 
@@ -103,7 +103,7 @@ defineEmits<{
 .section-label {
   font-size: 11px;
   font-weight: 600;
-  color: #6c7a96;
+  color: var(--accent-light);
   text-transform: uppercase;
   letter-spacing: 1px;
   padding: 0 0 8px;
@@ -114,10 +114,10 @@ defineEmits<{
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #8f98a0;
+  color: var(--text-secondary);
   padding: 8px 10px;
-  background: rgba(255,255,255,0.03);
-  border-radius: 6px;
+  background: var(--bg-hover-dark);
+  border-radius: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -143,7 +143,7 @@ defineEmits<{
 }
 
 .sidebar-nav::-webkit-scrollbar-thumb {
-  background: #2a3f55;
+  background: var(--border);
   border-radius: 2px;
 }
 
@@ -155,22 +155,22 @@ defineEmits<{
   padding: 9px 12px;
   border: none;
   background: transparent;
-  color: #8f98a0;
+  color: var(--text-muted);
   font-size: 13px;
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: 4px;
   transition: all 0.15s ease;
   text-align: left;
 }
 
 .nav-item:hover {
-  background: rgba(255,255,255,0.06);
-  color: #c7d5e0;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .nav-item.active {
-  background: rgba(74, 144, 217, 0.15);
-  color: #4a90d9;
+  background: rgba(66, 135, 244, 0.15);
+  color: var(--accent-light);
 }
 
 .nav-icon {
@@ -188,8 +188,8 @@ defineEmits<{
 
 .nav-count {
   font-size: 11px;
-  color: #6c7a96;
-  background: rgba(255,255,255,0.05);
+  color: var(--text-muted);
+  background: var(--bg-hover-dark);
   padding: 1px 6px;
   border-radius: 10px;
   min-width: 20px;
@@ -197,13 +197,13 @@ defineEmits<{
 }
 
 .nav-item.active .nav-count {
-  color: #4a90d9;
-  background: rgba(74, 144, 217, 0.15);
+  color: var(--accent-light);
+  background: rgba(66, 135, 244, 0.15);
 }
 
 .sidebar-footer {
   padding: 12px;
-  border-top: 1px solid #2a3f55;
+  border-top: 1px solid var(--border);
 }
 
 .btn-open-dir {
@@ -213,18 +213,18 @@ defineEmits<{
   gap: 8px;
   width: 100%;
   padding: 10px;
-  border: 1px solid #2a3f55;
-  background: rgba(255,255,255,0.03);
-  color: #8f98a0;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
   font-size: 13px;
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .btn-open-dir:hover {
-  background: rgba(74, 144, 217, 0.1);
-  border-color: #4a90d9;
-  color: #4a90d9;
+  background: rgba(66, 135, 244, 0.1);
+  border-color: var(--accent);
+  color: var(--accent-light);
 }
 </style>
