@@ -67,7 +67,7 @@
 
         <div class="top-bar-info" v-if="state.rootDirName">
           <span class="result-count">
-            {{ filteredAndSorted().length }} / {{ state.wallpapers.length }} 个壁纸
+            {{ filteredAndSorted.length }} / {{ state.wallpapers.length }} 个壁纸
           </span>
         </div>
       </header>
@@ -90,7 +90,7 @@
         </div>
 
         <!-- Empty result -->
-        <div v-else-if="filteredAndSorted().length === 0 && state.wallpapers.length > 0" class="empty-state">
+        <div v-else-if="filteredAndSorted.length === 0 && state.wallpapers.length > 0" class="empty-state">
           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5">
             <circle cx="11" cy="11" r="8"/>
             <path d="M21 21l-4.35-4.35"/>
@@ -291,8 +291,8 @@ function onDocumentClick(e: MouseEvent) {
   if (sortDropdownRef.value && !sortDropdownRef.value.contains(e.target as Node)) {
     showSortDropdown.value = false
   }
-  if (contextMenu.value.visible) {
-    contextMenu.value.visible = false
+  if (contextMenu.visible) {
+    contextMenu.visible = false
   }
 }
 
