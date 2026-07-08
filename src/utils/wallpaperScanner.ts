@@ -1,16 +1,34 @@
 import { reactive } from 'vue'
 
+export type WallpaperType = 'scene' | 'video' | 'web' | 'application'
+
 export interface WallpaperItem {
   id: string
   name: string
   folderName: string
   coverUrl: string
   category: string
+  type: WallpaperType
   folderHandle: FileSystemDirectoryHandle
   files: { name: string; handle: FileSystemFileHandle }[]
   // Sorting metadata
   lastModified: number // last modified timestamp of the wallpaper folder
 }
+
+export interface TypeInfo {
+  key: WallpaperType | 'all'
+  name: string
+  icon: string
+  count: number
+}
+
+export const TYPE_LIST: { key: WallpaperType | 'all'; name: string; icon: string }[] = [
+  { key: 'all', name: '全部', icon: '🗂️' },
+  { key: 'scene', name: '场景', icon: '🌄' },
+  { key: 'video', name: '视频', icon: '🎬' },
+  { key: 'web', name: '网页', icon: '🌐' },
+  { key: 'application', name: '应用', icon: '📱' },
+]
 
 export interface CategoryInfo {
   name: string
@@ -23,7 +41,8 @@ export type SortKey = 'name' | 'date' | 'category'
 const state = reactive({
   wallpapers: [] as WallpaperItem[],
   categories: [] as CategoryInfo[],
-  currentCategory: '全部',
+  selectedCategories: ['全部'] as string[],
+  selectedTypes: ['all'] as (WallpaperType | 'all')[],
   searchQuery: '',
   loading: false,
   rootDirName: '',
@@ -134,6 +153,59 @@ function isVideoFile(name: string): boolean {
   return VIDEO_EXTS.some(ext => lower.endsWith(ext))
 }
 
+function isWebFile(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.endsWith('.html') || lower.endsWith('.htm') || lower === 'index.html'
+}
+
+function isApplicationFile(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.endsWith('.exe') || lower.endsWith('.pkg')
+}
+
+async function inferWallpaperType(
+  dirHandle: FileSystemDirectoryHandle,
+  hasVideo: boolean
+): Promise<WallpaperType> {
+  let hasWeb = false
+  let hasApp = false
+  let hasImage = false
+
+  try {
+    for await (const [name, handle] of dirHandle.entries()) {
+      if (handle.kind === 'file') {
+        if (isWebFile(name)) hasWeb = true
+        if (isApplicationFile(name)) hasApp = true
+        if (isImageFile(name)) hasImage = true
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // Also check project.json type
+  try {
+    const projectFile = await (dirHandle as any).getFileHandle('project.json')
+    const file = await projectFile.getFile()
+    const text = await file.text()
+    const data = JSON.parse(text)
+    if (data.type) {
+      const typeLower = String(data.type).toLowerCase()
+      if (typeLower.includes('video')) return 'video'
+      if (typeLower.includes('web') || typeLower.includes('html')) return 'web'
+      if (typeLower.includes('application') || typeLower.includes('app') || typeLower.includes('exe')) return 'application'
+      if (typeLower.includes('scene')) return 'scene'
+    }
+  } catch {
+    // ignore
+  }
+
+  if (hasApp) return 'application'
+  if (hasWeb) return 'web'
+  if (hasVideo) return 'video'
+  return 'scene'
+}
+
 // Priority for cover image: cover.png/jpg > preview.png/jpg > thumbnail > folder.jpg > first image
 function coverPriority(name: string): number {
   const lower = name.toLowerCase()
@@ -222,6 +294,7 @@ async function scanWallpaperDir(
 ): Promise<WallpaperItem | null> {
   const files: { name: string; handle: FileSystemFileHandle; priority: number }[] = []
   let hasMedia = false
+  let hasVideo = false
 
   // Collect all files in the directory (non-recursive for now)
   for await (const [name, handle] of dirHandle.entries()) {
@@ -230,6 +303,7 @@ async function scanWallpaperDir(
       const isVideo = isVideoFile(name)
       if (isImage || isVideo) {
         hasMedia = true
+        if (isVideo) hasVideo = true
         files.push({
           name,
           handle: handle as FileSystemFileHandle,
@@ -270,6 +344,7 @@ async function scanWallpaperDir(
 
   const category = getCategory(folderName)
   const lastModified = await getFolderModifiedTime(dirHandle)
+  const type = await inferWallpaperType(dirHandle, hasVideo)
 
   return {
     id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -277,6 +352,7 @@ async function scanWallpaperDir(
     folderName,
     coverUrl,
     category,
+    type,
     folderHandle: dirHandle,
     files: files.map(f => ({ name: f.name, handle: f.handle })),
     lastModified
@@ -324,7 +400,8 @@ export function useWallpaperStore() {
       state.rootDirName = dirHandle.name
       state.wallpapers = await scanDirectory(dirHandle)
       state.categories = buildCategories(state.wallpapers)
-      state.currentCategory = '全部'
+      state.selectedCategories = ['全部']
+      state.selectedTypes = ['all']
       state.searchQuery = ''
       state.sortBy = 'date'
       state.sortAsc = false // Most recent first by default
@@ -337,8 +414,26 @@ export function useWallpaperStore() {
     }
   }
 
-  function setCategory(cat: string) {
-    state.currentCategory = cat
+  function setSelectedCategories(cats: string[]) {
+    state.selectedCategories = cats
+  }
+
+  function setSelectedTypes(types: (WallpaperType | 'all')[]) {
+    state.selectedTypes = types
+  }
+
+  function getTypeCounts(): Record<WallpaperType | 'all', number> {
+    const counts: Record<string, number> = {
+      all: state.wallpapers.length,
+      scene: 0,
+      video: 0,
+      web: 0,
+      application: 0
+    }
+    for (const wp of state.wallpapers) {
+      counts[wp.type] = (counts[wp.type] || 0) + 1
+    }
+    return counts as Record<WallpaperType | 'all', number>
   }
 
   function setSearch(query: string) {
@@ -356,8 +451,14 @@ export function useWallpaperStore() {
   const filteredWallpapers = () => {
     let result = state.wallpapers
 
-    if (state.currentCategory !== '全部') {
-      result = result.filter(wp => wp.category === state.currentCategory)
+    // Type filter
+    if (!state.selectedTypes.includes('all') && state.selectedTypes.length > 0) {
+      result = result.filter(wp => state.selectedTypes.includes(wp.type))
+    }
+
+    // Category filter
+    if (!state.selectedCategories.includes('全部') && state.selectedCategories.length > 0) {
+      result = result.filter(wp => state.selectedCategories.includes(wp.category))
     }
 
     if (state.searchQuery.trim()) {
@@ -398,7 +499,9 @@ export function useWallpaperStore() {
   return {
     state,
     openDirectory,
-    setCategory,
+    setSelectedCategories,
+    setSelectedTypes,
+    getTypeCounts,
     setSearch,
     setSortBy,
     setSortAsc,

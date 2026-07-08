@@ -3,10 +3,13 @@
     <!-- Sidebar -->
     <Sidebar
       :categories="state.categories"
-      :currentCategory="state.currentCategory"
+      :selectedCategories="state.selectedCategories"
+      :selectedTypes="state.selectedTypes"
       :rootDirName="state.rootDirName"
       :wallpaperCount="state.wallpapers.length"
-      @select-category="setCategory"
+      :typeCounts="typeCounts"
+      @select-category="setSelectedCategories"
+      @select-type="setSelectedTypes"
       @open-directory="openDirectory"
     />
 
@@ -252,12 +255,24 @@
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, onUnmounted, watch } from 'vue'
 import { useWallpaperStore } from './utils/wallpaperScanner'
-import type { WallpaperItem, SortKey } from './utils/wallpaperScanner'
+import type { WallpaperItem, SortKey, WallpaperType } from './utils/wallpaperScanner'
 import Sidebar from './components/Sidebar.vue'
 import WallpaperCard from './components/WallpaperCard.vue'
 import PreviewModal from './components/PreviewModal.vue'
 
-const { state, openDirectory, setCategory, setSearch, filteredWallpapers, setSortBy, setSortAsc } = useWallpaperStore()
+const {
+  state,
+  openDirectory,
+  setSelectedCategories,
+  setSelectedTypes,
+  getTypeCounts,
+  setSearch,
+  filteredWallpapers,
+  setSortBy,
+  setSortAsc
+} = useWallpaperStore()
+
+const typeCounts = computed(() => getTypeCounts())
 
 const previewWallpaper = ref<WallpaperItem | null>(null)
 
