@@ -1,5 +1,5 @@
 <template>
-  <div class="wallpaper-card" ref="cardRef" :class="{ selected: selected }" @click="handleClick" @dblclick="handleDoubleClick">
+  <div class="wallpaper-card" ref="cardRef" :class="{ selected: selected }" @click="handleClick" @dblclick="handleDoubleClick" @pointerdown="onPointerDown" @pointerup="onPointerUp">
     <div class="card-cover">
       <img
         :src="wallpaper.coverUrl"
@@ -15,6 +15,12 @@
           <path d="M20 6L9 17l-5-5"/>
         </svg>
       </div>
+      <button class="card-preview-btn" @click.stop="handlePreview" title="预览">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
       <div class="card-name-overlay">
         <span class="card-title" :title="wallpaper.name">{{ wallpaper.name }}</span>
       </div>
@@ -121,6 +127,26 @@ function handleDoubleClick() {
   emit('preview', props.wallpaper)
 }
 
+function handlePreview() {
+  emit('preview', props.wallpaper)
+}
+
+const DOUBLE_TAP_DURATION = 300
+let lastTapTime = 0
+
+function onPointerDown() {
+  const now = Date.now()
+  if (now - lastTapTime < DOUBLE_TAP_DURATION) {
+    emit('preview', props.wallpaper)
+    lastTapTime = 0
+  } else {
+    lastTapTime = now
+  }
+}
+
+function onPointerUp() {
+}
+
 function onImageError(e: Event) {
   const img = e.target as HTMLImageElement
   img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250" fill="%23f2f2f2"><rect width="400" height="250"/><text x="200" y="130" text-anchor="middle" fill="%238a8a8a" font-size="16" font-family="sans-serif">无封面</text></svg>')
@@ -205,6 +231,37 @@ function onImageError(e: Event) {
   border-radius: 3px;
   backdrop-filter: blur(4px);
   color: #ffffff;
+}
+
+.card-preview-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  border-radius: 4px;
+  color: #ffffff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+
+.wallpaper-card:hover .card-preview-btn {
+  opacity: 1;
+}
+
+.card-preview-btn:hover {
+  background: rgba(0, 120, 212, 0.85);
+}
+
+.wallpaper-card.selected .card-preview-btn {
+  right: 30px;
+  opacity: 1;
 }
 
 .card-name-overlay {
@@ -306,5 +363,27 @@ function onImageError(e: Event) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Mobile - always show preview button */
+@media (max-width: 768px) {
+  .card-preview-btn {
+    opacity: 1;
+    width: 28px;
+    height: 28px;
+  }
+
+  .wallpaper-card.selected .card-preview-btn {
+    right: 32px;
+  }
+
+  .wallpaper-card:hover .card-cover img {
+    transform: none;
+  }
+
+  .wallpaper-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
 }
 </style>
