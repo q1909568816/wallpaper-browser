@@ -230,6 +230,8 @@
       @copy-path="copyWallpaperPathFromDetail"
       @copy-name="copyWallpaperNameFromDetail"
       @preview-file="previewFile"
+      @keep-toast="keepToast"
+      @release-toast="releaseToast"
     />
 
     <PreviewModal
@@ -245,6 +247,8 @@
         class="context-menu"
         :style="{ left: contextMenu.x + 'px', top: contextMenu.y + 'px' }"
         @click="contextMenu.visible = false"
+        @mouseenter="keepToast"
+        @mouseleave="releaseToast"
       >
         <div class="context-menu-header">
           <span class="ctx-wallpaper-name">{{ contextMenu.wallpaper?.name }}</span>
@@ -524,14 +528,38 @@ function onContextMenu(e: MouseEvent, wallpaper: WallpaperItem) {
 const toast = reactive({
   visible: false,
   message: '',
-  timer: null as ReturnType<typeof setTimeout> | null
+  timer: null as ReturnType<typeof setTimeout> | null,
+  keep: false
 })
 
 function showToast(message: string) {
   if (toast.timer) clearTimeout(toast.timer)
   toast.message = message
   toast.visible = true
-  toast.timer = setTimeout(() => { toast.visible = false }, 2000)
+  toast.keep = false
+  scheduleToastClose()
+}
+
+function scheduleToastClose() {
+  if (toast.timer) clearTimeout(toast.timer)
+  toast.timer = setTimeout(() => {
+    if (!toast.keep) {
+      toast.visible = false
+    } else {
+      scheduleToastClose()
+    }
+  }, 2000)
+}
+
+function keepToast() {
+  toast.keep = true
+}
+
+function releaseToast() {
+  toast.keep = false
+  if (toast.visible) {
+    scheduleToastClose()
+  }
 }
 
 function selectWallpaper(wallpaper: WallpaperItem) {

@@ -197,7 +197,8 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  height: 34px;
+  padding: 0 14px;
   border: none;
   border-radius: 4px;
   background: var(--accent);
@@ -863,7 +864,8 @@ body {
 
   .sort-btn {
     font-size: 11px;
-    padding: 6px 8px;
+    padding: 0 8px;
+    height: 34px;
   }
 
   .wallpaper-grid {
@@ -959,7 +961,7 @@ body {
   }
 
   .top-refresh-btn {
-    width: 28px;
-    height: 28px;
+    width: 34px;
+    height: 34px;
   }
 }

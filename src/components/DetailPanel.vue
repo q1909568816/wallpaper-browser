@@ -1,5 +1,8 @@
 <template>
-  <aside class="detail-panel">
+  <aside class="detail-panel" :class="{ expanded: isExpanded }">
+    <div class="mobile-handle" @click="togglePanel">
+      <div class="mobile-handle-bar"></div>
+    </div>
     <div v-if="wallpaper" class="panel-content">
       <div class="panel-cover">
         <img
@@ -149,6 +152,8 @@
         class="context-menu file-context-menu"
         :style="{ left: fileContextMenu.x + 'px', top: fileContextMenu.y + 'px' }"
         @click="fileContextMenu.visible = false"
+        @mouseenter="emit('keepToast')"
+        @mouseleave="emit('releaseToast')"
       >
         <div class="context-menu-header">
           <span class="ctx-wallpaper-name">{{ fileContextMenu.item?.name }}</span>
@@ -182,6 +187,26 @@ const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.svg']
 const VIDEO_EXTS = ['.mp4', '.mkv', '.webm', '.avi', '.mov']
 const WEB_EXTS = ['.html', '.htm']
 const TEXT_EXTS = ['.json', '.txt', '.md', '.xml', '.csv', '.css', '.js', '.ts']
+
+function isImageMimeType(type: string): boolean {
+  return type.startsWith('image/')
+}
+
+function isVideoMimeType(type: string): boolean {
+  return type.startsWith('video/')
+}
+
+function isWebMimeType(type: string): boolean {
+  return type.startsWith('text/html') || type.startsWith('application/xhtml')
+}
+
+function isTextMimeType(type: string): boolean {
+  return type.startsWith('text/') || 
+         type === 'application/json' || 
+         type === 'application/xml' ||
+         type === 'application/javascript' ||
+         type === 'application/typescript'
+}
 
 const TAG_TRANSLATION: Record<string, string> = {
   '4k': '4K',
@@ -347,18 +372,30 @@ const emit = defineEmits<{
   copyPath: []
   copyName: []
   previewFile: [file: FileSystemFileHandle]
+  keepToast: []
+  releaseToast: []
 }>()
 
 interface FileSystemItem {
   name: string
   kind: 'file' | 'directory'
   handle: FileSystemFileHandle | FileSystemDirectoryHandle
+  type?: string
 }
 
+const isExpanded = ref(false)
 const currentPath = ref<string[]>(['壁纸目录'])
 const currentFiles = ref<FileSystemItem[]>([])
 const currentDirHandle = ref<FileSystemDirectoryHandle | null>(null)
 const dirHandleStack = ref<FileSystemDirectoryHandle[]>([])
+
+function togglePanel() {
+  isExpanded.value = !isExpanded.value
+}
+
+function expandPanel() {
+  isExpanded.value = true
+}
 
 const typeLabel = computed(() => {
   if (!props.wallpaper) return ''
@@ -410,7 +447,8 @@ async function loadFiles(dirHandle: FileSystemDirectoryHandle) {
     items.push({
       name,
       kind: handle.kind as 'file' | 'directory',
-      handle
+      handle,
+      type: handle.kind === 'file' ? (handle as FileSystemFileHandle).type : undefined
     })
   }
   
@@ -425,6 +463,7 @@ async function loadFiles(dirHandle: FileSystemDirectoryHandle) {
 }
 
 function handleFileClick(item: FileSystemItem) {
+  expandPanel()
   if (item.kind === 'directory') {
     const dirHandle = item.handle as FileSystemDirectoryHandle
     if (currentDirHandle.value) {
@@ -436,6 +475,7 @@ function handleFileClick(item: FileSystemItem) {
 }
 
 function handleFileDoubleClick(item: FileSystemItem) {
+  expandPanel()
   if (item.kind === 'file' && canPreview(item)) {
     emit('previewFile', item.handle as FileSystemFileHandle)
   }
@@ -464,6 +504,10 @@ function getFileIconClass(name: string): string {
 
 function canPreview(item: FileSystemItem | null): boolean {
   if (!item || item.kind !== 'file') return false
+  if (item.type) {
+    return isImageMimeType(item.type) || isVideoMimeType(item.type) || 
+           isWebMimeType(item.type) || isTextMimeType(item.type)
+  }
   const lower = item.name.toLowerCase()
   return IMAGE_EXTS.some(e => lower.endsWith(e)) || 
          VIDEO_EXTS.some(e => lower.endsWith(e)) || 
@@ -519,6 +563,7 @@ function onPointerCancel() {
 }
 
 function showFileContextMenuAt(x: number, y: number, item: FileSystemItem) {
+  expandPanel()
   fileContextMenu.visible = true
   fileContextMenu.x = x
   fileContextMenu.y = y
@@ -568,6 +613,7 @@ watch(() => props.wallpaper, (newWallpaper) => {
   if (newWallpaper?.folderHandle) {
     currentPath.value = ['壁纸目录']
     loadFiles(newWallpaper.folderHandle)
+    expandPanel()
   } else {
     currentPath.value = ['壁纸目录']
     currentFiles.value = []
@@ -852,7 +898,7 @@ function onImageError(e: Event) {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 240px;
+  max-height: 480px;
   overflow-y: auto;
 }
 
@@ -945,6 +991,10 @@ function onImageError(e: Event) {
   min-width: 180px;
 }
 
+.mobile-handle {
+  display: none;
+}
+
 /* Mobile Styles */
 @media (max-width: 1024px) {
   .detail-panel {
@@ -961,32 +1011,38 @@ function onImageError(e: Event) {
     right: 0;
     width: 100%;
     min-width: 100%;
-    height: 55vh;
+    height: 70vh;
     border-left: none;
     border-top: 1px solid var(--border);
     border-radius: 16px 16px 0 0;
-    transform: translateY(calc(100% - 56px));
+    transform: translateY(calc(100% - 52px));
     transition: transform 0.3s ease;
     z-index: 900;
     background: var(--bg-secondary);
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
   }
 
-  .detail-panel::before {
-    content: '';
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    transform: translateX(-50%);
+  .detail-panel.expanded {
+    transform: translateY(0);
+  }
+
+  .mobile-handle {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 28px;
+    padding: 12px 0 4px;
+    cursor: pointer;
+    flex-shrink: 0;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .mobile-handle-bar {
     width: 40px;
     height: 4px;
     background: var(--border);
     border-radius: 2px;
-  }
-
-  .detail-panel:hover,
-  .detail-panel:focus-within {
-    transform: translateY(0);
   }
 
   .panel-content {
@@ -1044,7 +1100,7 @@ function onImageError(e: Event) {
 
   .file-section {
     flex: 1;
-    min-height: 0;
+    min-height: 150px;
     display: flex;
     flex-direction: column;
     overflow: hidden;

@@ -18,7 +18,7 @@ export interface WallpaperItem {
   category: string
   type: WallpaperType
   folderHandle?: FileSystemDirectoryHandle
-  files: { name: string; handle?: FileSystemFileHandle }[]
+  files: { name: string; handle?: FileSystemFileHandle; type?: string }[]
   lastModified: number
   tags: string[]
   description: string
@@ -573,12 +573,12 @@ async function scanWallpaperDir(
   dirHandle: FileSystemDirectoryHandle,
   forceRefresh = false
 ): Promise<WallpaperItem | null> {
-  let files: { name: string; handle?: FileSystemFileHandle; priority: number }[] = []
+  let files: { name: string; handle?: FileSystemFileHandle; type?: string }[] = []
   let hasVideo = false
   let hasWeb = false
   let hasApp = false
   let projectJson: ProjectJson | null = null
-  let allFiles: { name: string; handle?: FileSystemFileHandle }[] = []
+  let allFiles: { name: string; handle?: FileSystemFileHandle; type?: string }[] = []
 
   const cached = forceRefresh ? null : await getCachedWallpaper(folderName)
 
@@ -625,7 +625,7 @@ async function scanWallpaperDir(
       files.push({
         name: f.name,
         handle: f.handle,
-        priority: isImage ? coverPriority(f.name) : 0
+        type: f.handle ? (f.handle as any).type : undefined
       })
     }
     if (isWebFile(f.name)) hasWeb = true
@@ -642,7 +642,13 @@ async function scanWallpaperDir(
     }
   }
 
-  files.sort((a, b) => b.priority - a.priority)
+  files.sort((a, b) => {
+    const aIsImage = a.type?.startsWith('image/') ?? false
+    const bIsImage = b.type?.startsWith('image/') ?? false
+    if (aIsImage && !bIsImage) return -1
+    if (!aIsImage && bIsImage) return 1
+    return 0
+  })
 
   const coverFile = files[0]
   const coverFileHandle = coverFile?.handle
@@ -992,10 +998,10 @@ export async function loadPageHandles(folderNames: string[]): Promise<void> {
           }
           loadedDirNames.add(folderName)
 
-          const files: { name: string; handle?: FileSystemFileHandle }[] = []
+          const files: { name: string; handle?: FileSystemFileHandle; type?: string }[] = []
           for await (const [name, handle] of subdirHandle.entries()) {
             if (handle.kind === 'file') {
-              files.push({ name, handle: handle as FileSystemFileHandle })
+              files.push({ name, handle: handle as FileSystemFileHandle, type: (handle as any).type })
             }
           }
           wallpaper.files = files
