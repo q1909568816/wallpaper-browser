@@ -289,7 +289,7 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, onUnmounted, watch } from 'vue'
-import { useWallpaperStore, restoreSavedDirectory, forceRefresh } from './utils/wallpaperScanner'
+import { useWallpaperStore, restoreSavedDirectory, forceRefresh, loadPageHandles } from './utils/wallpaperScanner'
 import type { WallpaperItem, SortKey, WallpaperType } from './utils/wallpaperScanner'
 import Sidebar from './components/Sidebar.vue'
 import WallpaperCard from './components/WallpaperCard.vue'
@@ -365,6 +365,7 @@ onMounted(async () => {
   if (!restored) {
     state.loading = false
   }
+  loadCurrentPageHandles()
 })
 onUnmounted(() => document.removeEventListener('click', onDocumentClick))
 
@@ -451,6 +452,13 @@ function goToPage(page: number) {
   if (page < 1 || page > totalPages.value) return
   currentPage.value = page
   contentAreaRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
+  loadCurrentPageHandles()
+}
+
+async function loadCurrentPageHandles() {
+  const wallpapers = displayedWallpapers.value
+  const folderNames = wallpapers.map(w => w.folderName)
+  await loadPageHandles(folderNames)
 }
 
 function onPageSizeChange() {
@@ -459,6 +467,7 @@ function onPageSizeChange() {
 
 watch([() => state.searchQuery, () => state.sortBy, () => state.sortAsc], () => {
   currentPage.value = 1
+  loadCurrentPageHandles()
 })
 
 const contextMenu = reactive({

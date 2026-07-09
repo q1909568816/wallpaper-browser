@@ -17,8 +17,8 @@ export interface WallpaperItem {
   coverFileHandle?: FileSystemFileHandle
   category: string
   type: WallpaperType
-  folderHandle: FileSystemDirectoryHandle
-  files: { name: string; handle: FileSystemFileHandle }[]
+  folderHandle?: FileSystemDirectoryHandle
+  files: { name: string; handle?: FileSystemFileHandle }[]
   lastModified: number
   tags: string[]
   description: string
@@ -898,30 +898,18 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
     const freshEntries = cachedList.filter(c => c.cachedAt > oldestValid)
     if (freshEntries.length === 0) return false
 
-    // 从 IndexedDB 读取已缓存的目录 handles
-    const { handleMap } = await getCachedDirectoryHandles()
-
-    // 如果 handles 缓存数量不匹配，回退到枚举（可能新增了目录）
-    if (handleMap.size < freshEntries.length * 0.95) {
-      for await (const [name, handle] of dirHandle.entries()) {
-        if (handle.kind === 'directory' && !handleMap.has(name)) {
-          handleMap.set(name, handle as FileSystemDirectoryHandle)
-        }
-      }
-    }
-
     await loadWorkshopMetadata(dirHandle)
 
     const restored: WallpaperItem[] = []
     for (const c of freshEntries) {
-      if (!handleMap.has(c.folderName)) continue
       restored.push({
         ...c,
         id: `wp-${c.folderName}`,
         type: c.type as WallpaperType,
-        folderHandle: handleMap.get(c.folderName)!,
-        files: [],
+        folderHandle: undefined,
+        files: c.fileNames.map(name => ({ name, handle: undefined })),
         coverUrl: '',
+        coverFileHandle: undefined,
         description: c.description || ''
       })
     }
@@ -949,6 +937,35 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
     return true
   } catch {
     return false
+  }
+}
+
+export async function loadPageHandles(folderNames: string[]): Promise<void> {
+  if (!workshopContentHandle) return
+
+  for (const folderName of folderNames) {
+    const wallpaper = state.wallpapers.find(w => w.folderName === folderName)
+    if (!wallpaper || wallpaper.folderHandle) continue
+
+    try {
+      const subdirHandle = await workshopContentHandle.getDirectoryHandle(folderName)
+      wallpaper.folderHandle = subdirHandle
+
+      const files: { name: string; handle?: FileSystemFileHandle }[] = []
+      for await (const [name, handle] of subdirHandle.entries()) {
+        if (handle.kind === 'file') {
+          files.push({ name, handle: handle as FileSystemFileHandle })
+        }
+      }
+      wallpaper.files = files
+
+      const coverFileName = wallpaper.previewFile || ''
+      const coverFile = files.find(f => f.name.toLowerCase() === coverFileName.toLowerCase()) ||
+        files.find(f => isImageFile(f.name)) ||
+        files.find(f => isVideoFile(f.name))
+      wallpaper.coverFileHandle = coverFile?.handle
+    } catch {
+    }
   }
 }
 

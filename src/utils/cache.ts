@@ -1,7 +1,7 @@
 import type { WallpaperItem } from './wallpaperScanner'
 
 const DB_NAME = 'WallpaperBrowserDB'
-const DB_VERSION = 4
+const DB_VERSION = 5
 
 const STORES = {
   WALLPAPERS: 'wallpapers',
@@ -25,6 +25,8 @@ interface CachedWallpaper {
   visibility: string
   lastModified: number
   cachedAt: number
+  fileNames: string[]
+  coverFileName: string
   rating?: number
   ratingRounded?: number
   fileSize?: number
@@ -141,6 +143,8 @@ export async function cacheWallpapers(wallpapers: WallpaperItem[]): Promise<void
           visibility: wp.visibility,
           lastModified: wp.lastModified,
           cachedAt,
+          fileNames: wp.files.map(f => f.name),
+          coverFileName: wp.coverFileHandle?.name || wp.previewFile || '',
           rating: wp.rating,
           ratingRounded: wp.ratingRounded,
           fileSize: wp.fileSize,
