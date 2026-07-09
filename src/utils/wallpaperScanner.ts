@@ -866,6 +866,13 @@ export async function restoreSavedDirectory(): Promise<boolean> {
       if (newPermission !== 'granted') return false
     }
 
+    try {
+      await savedHandle.getDirectoryHandle('workshop', { create: false })
+    } catch {
+      await resetState()
+      return false
+    }
+
     const restored = await restoreFromCache(savedHandle)
     if (restored) {
       return true
@@ -873,8 +880,28 @@ export async function restoreSavedDirectory(): Promise<boolean> {
 
     await scanDirectoryFromHandle(savedHandle)
     return true
-  } catch { /* ignore */ }
-  return false
+  } catch {
+    await resetState()
+    return false
+  }
+}
+
+async function resetState(): Promise<void> {
+  state.wallpapers = []
+  state.categories = []
+  state.tags = []
+  state.contentRatings = []
+  state.rootDirName = ''
+  state.loading = false
+  state.loadingMore = false
+  state.totalSubdirs = 0
+  state.loadedCount = 0
+  state.currentPage = 1
+  coverUrlCache.clear()
+  allSubdirs = []
+  loadedDirNames.clear()
+  workshopContentHandle = null
+  workshopCache = null
 }
 
 async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<boolean> {

@@ -124,7 +124,7 @@ const typeLabel = computed(() => {
 
 const isImage = computed(() => {
   const ext = fileName.value.toLowerCase()
-  return IMAGE_EXTS.some(e => ext.endsWith(e)) || (!props.file && props.wallpaper?.type === 'scene')
+  return IMAGE_EXTS.some(e => ext.endsWith(e)) || (!props.file && props.wallpaper?.type === 'scene' && !hasSceneHtml)
 })
 
 const isVideo = computed(() => {
@@ -134,7 +134,12 @@ const isVideo = computed(() => {
 
 const isWeb = computed(() => {
   const ext = fileName.value.toLowerCase()
-  return WEB_EXTS.some(e => ext.endsWith(e)) || (!props.file && props.wallpaper?.type === 'web')
+  return WEB_EXTS.some(e => ext.endsWith(e)) || (!props.file && props.wallpaper?.type === 'web') || (!props.file && props.wallpaper?.type === 'scene' && hasSceneHtml)
+})
+
+const hasSceneHtml = computed(() => {
+  if (!props.wallpaper) return false
+  return props.wallpaper.files.some(f => f.name.toLowerCase() === 'scene.html' || f.name.toLowerCase() === 'index.html')
 })
 
 async function generateUrl() {
@@ -149,6 +154,22 @@ async function generateUrl() {
   }
 
   if (!props.file) {
+    if (props.wallpaper.type === 'scene' && hasSceneHtml.value) {
+      const sceneFile = props.wallpaper.files.find(f => f.name.toLowerCase() === 'scene.html')?.handle ||
+        props.wallpaper.files.find(f => f.name.toLowerCase() === 'index.html')?.handle || null
+      if (sceneFile && typeof (sceneFile as any).getFile === 'function') {
+        try {
+          const file = await (sceneFile as FileSystemFileHandle).getFile()
+          if (token !== generateToken) return
+          const oldUrl = generatedUrl.value
+          generatedUrl.value = URL.createObjectURL(file)
+          if (oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl)
+          return
+        } catch {
+        }
+      }
+    }
+
     if (props.wallpaper.type === 'web') {
       if (token === generateToken) {
         cleanup()
