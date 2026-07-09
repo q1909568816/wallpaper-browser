@@ -90,8 +90,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -112,8 +112,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 4px;
@@ -147,7 +147,8 @@ body {
 
 .search-input {
   width: 100%;
-  padding: 8px 32px 8px 36px;
+  height: 34px;
+  padding: 0 32px 0 36px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-primary);
@@ -244,7 +245,8 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
+  height: 34px;
+  padding: 0 12px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-primary);
@@ -895,7 +897,7 @@ body {
 
   .pagination {
     flex-wrap: wrap;
-    padding: 16px 8px;
+    padding: 16px 8px 80px;
     gap: 4px;
   }
 
