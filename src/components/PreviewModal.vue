@@ -88,6 +88,7 @@ defineEmits<{
 const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.svg']
 const VIDEO_EXTS = ['.mp4', '.mkv', '.webm', '.avi', '.mov']
 const WEB_EXTS = ['.html', '.htm']
+const TEXT_EXTS = ['.json', '.txt', '.md', '.xml', '.csv', '.css', '.js', '.ts']
 
 const generatedUrl = ref('')
 const scale = ref(1)
@@ -134,7 +135,7 @@ const isVideo = computed(() => {
 
 const isWeb = computed(() => {
   const ext = fileName.value.toLowerCase()
-  return WEB_EXTS.some(e => ext.endsWith(e)) || (!props.file && isWebFile.value)
+  return WEB_EXTS.some(e => ext.endsWith(e)) || TEXT_EXTS.some(e => ext.endsWith(e)) || (!props.file && isWebFile.value)
 })
 
 const isWebFile = computed(() => {

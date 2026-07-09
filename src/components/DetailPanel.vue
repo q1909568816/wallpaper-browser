@@ -181,6 +181,7 @@ import { TYPE_LIST } from '../utils/wallpaperScanner'
 const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.svg']
 const VIDEO_EXTS = ['.mp4', '.mkv', '.webm', '.avi', '.mov']
 const WEB_EXTS = ['.html', '.htm']
+const TEXT_EXTS = ['.json', '.txt', '.md', '.xml', '.csv', '.css', '.js', '.ts']
 
 const TAG_TRANSLATION: Record<string, string> = {
   '4k': '4K',
@@ -466,7 +467,8 @@ function canPreview(item: FileSystemItem | null): boolean {
   const lower = item.name.toLowerCase()
   return IMAGE_EXTS.some(e => lower.endsWith(e)) || 
          VIDEO_EXTS.some(e => lower.endsWith(e)) || 
-         WEB_EXTS.some(e => lower.endsWith(e))
+         WEB_EXTS.some(e => lower.endsWith(e)) ||
+         TEXT_EXTS.some(e => lower.endsWith(e))
 }
 
 function isVideoFile(name: string | undefined): boolean {

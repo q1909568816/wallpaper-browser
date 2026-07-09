@@ -677,7 +677,7 @@ body {
 
 .context-menu {
   position: fixed;
-  z-index: 500;
+  z-index: 950;
   min-width: 220px;
   background: var(--bg-secondary);
   border: 1px solid var(--border);
