@@ -897,4 +897,106 @@ function onImageError(e: Event) {
 .file-context-menu {
   min-width: 180px;
 }
+
+/* Mobile Styles */
+@media (max-width: 1024px) {
+  .detail-panel {
+    width: 320px;
+    min-width: 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  .detail-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+    max-height: 60vh;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    border-radius: 16px 16px 0 0;
+    transform: translateY(calc(100% - 60px));
+    transition: transform 0.3s ease;
+    z-index: 900;
+    background: var(--bg-secondary);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
+  }
+
+  .detail-panel::before {
+    content: '';
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+  }
+
+  .detail-panel:hover,
+  .detail-panel:focus-within {
+    transform: translateY(0);
+  }
+
+  .panel-content {
+    padding-top: 20px;
+  }
+
+  .panel-cover {
+    display: none;
+  }
+
+  .panel-info {
+    padding: 16px;
+  }
+
+  .panel-title {
+    font-size: 15px;
+  }
+
+  .panel-stats {
+    gap: 16px;
+  }
+
+  .stat-value {
+    font-size: 18px;
+  }
+
+  .panel-actions {
+    flex-direction: row;
+  }
+
+  .action-btn {
+    flex: 1;
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  .file-section {
+    max-height: 150px;
+    overflow-y: auto;
+  }
+
+  .file-list {
+    max-height: 120px;
+  }
+
+  .empty-panel {
+    padding: 24px;
+  }
+
+  .empty-panel svg {
+    width: 40px;
+    height: 40px;
+  }
+
+  .empty-panel p {
+    font-size: 12px;
+  }
+}
 </style>

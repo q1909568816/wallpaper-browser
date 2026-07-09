@@ -795,3 +795,169 @@ body {
   opacity: 0;
   transform: translateX(-50%) translateY(12px);
 }
+
+/* ========================================
+   Mobile Responsive Styles
+   ======================================== */
+
+/* Tablet (768px - 1024px) */
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 240px;
+  }
+
+  .wallpaper-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  .top-bar {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .search-wrapper {
+    max-width: 320px;
+  }
+}
+
+/* Mobile (< 768px) */
+@media (max-width: 768px) {
+  :root {
+    --sidebar-width: 100%;
+  }
+
+  .app {
+    flex-direction: column;
+  }
+
+  .top-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .sidebar-toggle-btn {
+    display: flex;
+  }
+
+  .search-wrapper {
+    flex: 1;
+    max-width: none;
+    order: 1;
+    width: 100%;
+  }
+
+  .search-input {
+    font-size: 16px;
+  }
+
+  .filter-results-btn {
+    display: none;
+  }
+
+  .sort-wrapper {
+    flex-shrink: 1;
+  }
+
+  .sort-btn {
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  .wallpaper-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 3px;
+    padding: 3px;
+  }
+
+  .welcome-state {
+    padding: 24px 16px;
+    gap: 12px;
+  }
+
+  .welcome-state h2 {
+    font-size: 22px;
+  }
+
+  .welcome-state > p {
+    font-size: 14px;
+    padding: 0 8px;
+  }
+
+  .btn-primary {
+    padding: 12px 24px;
+    font-size: 14px;
+  }
+
+  .hint {
+    font-size: 11px;
+  }
+
+  .pagination {
+    flex-wrap: wrap;
+    padding: 16px 8px;
+    gap: 4px;
+  }
+
+  .page-btn {
+    min-width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+
+  .page-size-selector {
+    width: 100%;
+    justify-content: center;
+    margin-left: 0;
+    margin-top: 8px;
+  }
+
+  .context-menu {
+    min-width: 180px;
+    left: 8px !important;
+    right: 8px !important;
+    max-width: calc(100% - 16px);
+  }
+
+  .copy-toast {
+    left: 16px;
+    right: 16px;
+    transform: none;
+    bottom: 16px;
+    font-size: 12px;
+    padding: 8px 16px;
+  }
+
+  .toast-enter-from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  .toast-leave-to {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* Small Mobile (< 480px) */
+@media (max-width: 480px) {
+  .wallpaper-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2px;
+    padding: 2px;
+  }
+
+  .top-bar {
+    padding: 6px 8px;
+  }
+
+  .sort-btn {
+    padding: 5px 6px;
+    font-size: 10px;
+  }
+
+  .top-refresh-btn {
+    width: 28px;
+    height: 28px;
+  }
+}

@@ -1,5 +1,8 @@
 <template>
-  <aside class="sidebar" :class="{ collapsed: collapsed }">
+  <Teleport to="body">
+    <div class="sidebar-overlay" v-if="isMobile && !collapsed" @click="$emit('toggle')"></div>
+  </Teleport>
+  <aside class="sidebar" :class="{ collapsed: collapsed, 'mobile-open': isMobile && !collapsed }">
 
     <div class="sidebar-header" v-show="!collapsed">
       <div class="logo">
@@ -134,7 +137,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive } from 'vue'
+import { computed, reactive, ref, onMounted, onUnmounted } from 'vue'
 import type { CategoryInfo, WallpaperType } from '../utils/wallpaperScanner'
 import { TYPE_LIST } from '../utils/wallpaperScanner'
 
@@ -157,6 +160,7 @@ const emit = defineEmits<{
   selectTag: [tags: string[]]
   selectContentRating: [ratings: string[]]
   openDirectory: []
+  toggle: []
 }>()
 
 const sections = reactive({
@@ -164,6 +168,21 @@ const sections = reactive({
   categoryCollapsed: false,
   tagCollapsed: false,
   ratingCollapsed: false
+})
+
+const isMobile = ref(false)
+
+function checkMobile() {
+  isMobile.value = window.innerWidth <= 768
+}
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
 })
 
 const typeItems = computed(() => {
@@ -456,5 +475,66 @@ function toggleContentRating(name: string) {
   background: rgba(0, 120, 212, 0.08);
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* Mobile Styles */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 280px;
+    min-width: 280px;
+    height: 100vh;
+    z-index: 1000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    box-shadow: none;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    width: 280px;
+    min-width: 280px;
+  }
+
+  .sidebar-header {
+    padding: 16px;
+  }
+
+  .sidebar-content {
+    padding: 8px;
+  }
+
+  .filter-item {
+    padding: 10px 12px;
+  }
+
+  .filter-label {
+    font-size: 13px;
+  }
+
+  .btn-open-dir {
+    padding: 12px;
+    font-size: 14px;
+  }
 }
 </style>
