@@ -126,39 +126,51 @@ export async function cacheWallpapers(wallpapers: WallpaperItem[]): Promise<void
       const transaction = database.transaction([STORES.WALLPAPERS], 'readwrite')
       const store = transaction.objectStore(STORES.WALLPAPERS)
 
-      const cachedAt = Date.now()
-      wallpapers.forEach(wp => {
-        const cached: CachedWallpaper = {
-          folderName: wp.folderName,
-          name: wp.name,
-          category: wp.category,
-          type: wp.type,
-          tags: wp.tags,
-          description: wp.description,
-          workshopId: wp.workshopId,
-          previewFile: wp.previewFile,
-          mainFile: wp.mainFile,
-          schemeColor: wp.schemeColor,
-          contentRating: wp.contentRating,
-          visibility: wp.visibility,
-          lastModified: wp.lastModified,
-          cachedAt,
-          fileNames: wp.files.map(f => f.name),
-          coverFileName: wp.coverFileHandle?.name || wp.previewFile || '',
-          rating: wp.rating,
-          ratingRounded: wp.ratingRounded,
-          fileSize: wp.fileSize,
-          fileSizeLabel: wp.fileSizeLabel,
-          favorite: wp.favorite,
-          subscriptionDate: wp.subscriptionDate,
-          updateDate: wp.updateDate,
-          youtube: wp.youtube,
-          authorSteamId: wp.authorSteamId,
-          allowMobileUpload: wp.allowMobileUpload,
-          official: wp.official
+      const folderNameSet = new Set(wallpapers.map(wp => wp.folderName))
+      const existingKeysReq = store.getAllKeys()
+      existingKeysReq.onsuccess = () => {
+        const existingKeys = existingKeysReq.result as string[]
+        for (const key of existingKeys) {
+          if (!folderNameSet.has(key)) {
+            store.delete(key)
+          }
         }
-        store.put(cached)
-      })
+
+        const cachedAt = Date.now()
+        for (const wp of wallpapers) {
+          const coverFileName = wp.coverFileHandle?.name || wp.previewFile || ''
+          const cached: CachedWallpaper = {
+            folderName: wp.folderName,
+            name: wp.name,
+            category: wp.category,
+            type: wp.type,
+            tags: [...wp.tags],
+            description: wp.description,
+            workshopId: wp.workshopId,
+            previewFile: wp.previewFile,
+            mainFile: wp.mainFile,
+            schemeColor: wp.schemeColor,
+            contentRating: wp.contentRating,
+            visibility: wp.visibility,
+            lastModified: wp.lastModified,
+            cachedAt,
+            fileNames: wp.files.map(f => f.name),
+            coverFileName,
+            rating: wp.rating,
+            ratingRounded: wp.ratingRounded,
+            fileSize: wp.fileSize,
+            fileSizeLabel: wp.fileSizeLabel,
+            favorite: wp.favorite,
+            subscriptionDate: wp.subscriptionDate,
+            updateDate: wp.updateDate,
+            youtube: wp.youtube,
+            authorSteamId: wp.authorSteamId,
+            allowMobileUpload: wp.allowMobileUpload,
+            official: wp.official
+          }
+          store.put(cached)
+        }
+      }
 
       transaction.onerror = () => reject(transaction.error)
       transaction.oncomplete = () => resolve()

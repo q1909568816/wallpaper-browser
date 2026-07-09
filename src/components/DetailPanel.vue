@@ -354,6 +354,7 @@ interface FileSystemItem {
 const currentPath = ref<string[]>(['壁纸目录'])
 const currentFiles = ref<FileSystemItem[]>([])
 const currentDirHandle = ref<FileSystemDirectoryHandle | null>(null)
+const dirHandleStack = ref<FileSystemDirectoryHandle[]>([])
 
 const typeLabel = computed(() => {
   if (!props.wallpaper) return ''
@@ -421,8 +422,12 @@ async function loadFiles(dirHandle: FileSystemDirectoryHandle) {
 
 function handleFileClick(item: FileSystemItem) {
   if (item.kind === 'directory') {
+    const dirHandle = item.handle as FileSystemDirectoryHandle
+    if (currentDirHandle.value) {
+      dirHandleStack.value.push(currentDirHandle.value)
+    }
     currentPath.value.push(item.name)
-    loadFiles(item.handle as FileSystemDirectoryHandle)
+    loadFiles(dirHandle)
   }
 }
 
@@ -433,17 +438,14 @@ function handleFileDoubleClick(item: FileSystemItem) {
 }
 
 function navigateUp() {
-  if (currentPath.value.length > 1) {
-    currentPath.value.pop()
-    if (currentPath.value.length === 1 && props.wallpaper) {
-      loadFiles(props.wallpaper.folderHandle)
-    } else if (currentDirHandle.value) {
-      currentDirHandle.value.getParent?.().then(parent => {
-        if (parent) {
-          loadFiles(parent)
-        }
-      })
-    }
+  if (currentPath.value.length <= 1) return
+  currentPath.value.pop()
+  if (currentPath.value.length === 1 && props.wallpaper?.folderHandle) {
+    dirHandleStack.value = []
+    loadFiles(props.wallpaper.folderHandle)
+  } else if (dirHandleStack.value.length > 0) {
+    const parentHandle = dirHandleStack.value.pop()!
+    loadFiles(parentHandle)
   }
 }
 
@@ -518,7 +520,8 @@ function onDocumentClick() {
 }
 
 watch(() => props.wallpaper, (newWallpaper) => {
-  if (newWallpaper) {
+  dirHandleStack.value = []
+  if (newWallpaper?.folderHandle) {
     currentPath.value = ['壁纸目录']
     loadFiles(newWallpaper.folderHandle)
   } else {

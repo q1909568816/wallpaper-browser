@@ -41,6 +41,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import type { WallpaperItem } from '../utils/wallpaperScanner'
+import { setCoverUrl, clearCoverUrl, getCoverUrl } from '../utils/wallpaperScanner'
 
 const props = defineProps<{
   wallpaper: WallpaperItem
@@ -61,11 +62,22 @@ async function loadCover() {
   if (loadedCover.value) return
   if (!props.wallpaper.coverFileHandle) return
   try {
+    const cachedUrl = getCoverUrl(props.wallpaper.folderName)
+    if (cachedUrl) {
+      props.wallpaper.coverUrl = cachedUrl
+      loadedCover.value = true
+      return
+    }
     const file = await props.wallpaper.coverFileHandle.getFile()
-    props.wallpaper.coverUrl = URL.createObjectURL(file)
+    const url = URL.createObjectURL(file)
+    setCoverUrl(props.wallpaper.folderName, url)
+    props.wallpaper.coverUrl = url
     loadedCover.value = true
   } catch {
   }
+}
+
+function cleanupCover() {
 }
 
 onMounted(() => {
@@ -97,6 +109,7 @@ watch(() => props.wallpaper.coverFileHandle, (newHandle) => {
 onUnmounted(() => {
   observer?.disconnect()
   observer = null
+  cleanupCover()
 })
 
 function handleClick() {

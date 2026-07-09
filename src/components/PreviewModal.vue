@@ -43,9 +43,10 @@
         </div>
         <div class="preview-content">
           <div v-if="previewUrl" class="preview-media">
-            <div v-if="isImage || isWeb" class="image-container" @wheel.prevent="handleWheel">
+            <div v-if="isImage" class="image-container" @wheel.prevent="handleWheel">
               <img :src="previewUrl" class="preview-image" :style="imageStyle" alt="预览"/>
             </div>
+            <iframe v-else-if="isWeb" :src="previewUrl" class="preview-iframe" sandbox="allow-scripts allow-same-origin"/>
             <video v-else-if="isVideo" ref="videoRef" :src="previewUrl" class="preview-video" controls autoplay loop/>
             <div v-else class="preview-unsupported">
               <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
@@ -92,6 +93,7 @@ const generatedUrl = ref('')
 const scale = ref(1)
 const isFullscreen = ref(false)
 const videoRef = ref<HTMLVideoElement | null>(null)
+let generateToken = 0
 
 const previewUrl = computed(() => {
   if (generatedUrl.value) return generatedUrl.value
@@ -105,12 +107,12 @@ const imageStyle = computed(() => ({
 }))
 
 const title = computed(() => {
-  if (props.file) return props.file.name
+  if (props.file && typeof (props.file as any).getFile === 'function') return props.file.name
   return props.wallpaper?.name || ''
 })
 
 const fileName = computed(() => {
-  if (props.file) return props.file.name
+  if (props.file && typeof (props.file as any).getFile === 'function') return props.file.name
   return props.wallpaper?.mainFile || props.wallpaper?.previewFile || ''
 })
 
@@ -136,40 +138,65 @@ const isWeb = computed(() => {
 })
 
 async function generateUrl() {
+  const token = ++generateToken
+
   if (!props.visible || !props.wallpaper) {
-    generatedUrl.value = ''
+    if (token === generateToken) {
+      cleanup()
+      generatedUrl.value = ''
+    }
     return
   }
-  
+
   if (!props.file) {
     if (props.wallpaper.type === 'web') {
-      generatedUrl.value = props.wallpaper.coverUrl || ''
+      if (token === generateToken) {
+        cleanup()
+        generatedUrl.value = props.wallpaper.coverUrl || ''
+      }
       return
     }
-    
+
     const mainFile = props.wallpaper.mainFile || props.wallpaper.previewFile
     if (mainFile) {
       const targetFile = props.wallpaper.files.find(f => f.name.toLowerCase() === mainFile.toLowerCase())?.handle || null
-      if (targetFile) {
+      if (targetFile && typeof (targetFile as any).getFile === 'function') {
         try {
-          const file = await targetFile.getFile()
+          const file = await (targetFile as FileSystemFileHandle).getFile()
+          if (token !== generateToken) return
+          const oldUrl = generatedUrl.value
           generatedUrl.value = URL.createObjectURL(file)
+          if (oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl)
         } catch {
-          generatedUrl.value = props.wallpaper.coverUrl || ''
+          if (token === generateToken) {
+            generatedUrl.value = props.wallpaper.coverUrl || ''
+          }
         }
         return
       }
     }
-    
-    generatedUrl.value = props.wallpaper.coverUrl || ''
+
+    if (token === generateToken) {
+      cleanup()
+      generatedUrl.value = props.wallpaper.coverUrl || ''
+    }
     return
   }
-  
-  if (props.file) {
+
+  if (props.file && typeof (props.file as any).getFile === 'function') {
     try {
       const file = await props.file.getFile()
+      if (token !== generateToken) return
+      const oldUrl = generatedUrl.value
       generatedUrl.value = URL.createObjectURL(file)
+      if (oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl)
     } catch {
+      if (token === generateToken) {
+        generatedUrl.value = props.wallpaper.coverUrl || ''
+      }
+    }
+  } else {
+    if (token === generateToken) {
       generatedUrl.value = props.wallpaper.coverUrl || ''
     }
   }

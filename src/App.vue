@@ -365,7 +365,7 @@ onMounted(async () => {
   if (!restored) {
     state.loading = false
   }
-  loadCurrentPageHandles()
+  await loadCurrentPageHandles()
 })
 onUnmounted(() => document.removeEventListener('click', onDocumentClick))
 
@@ -380,26 +380,36 @@ function resetPage() {
 function handleSelectCategories(cats: string[]) {
   setSelectedCategories(cats)
   resetPage()
+  loadCurrentPageHandles()
 }
 
 function handleSelectTypes(types: (WallpaperType | 'all')[]) {
   setSelectedTypes(types)
   resetPage()
+  loadCurrentPageHandles()
 }
 
 function handleSelectTags(tags: string[]) {
   setSelectedTags(tags)
   resetPage()
+  loadCurrentPageHandles()
 }
 
 function handleSelectContentRatings(ratings: string[]) {
   setSelectedContentRatings(ratings)
   resetPage()
+  loadCurrentPageHandles()
 }
+
+let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 function handleSearch(query: string) {
   setSearch(query)
   resetPage()
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
+  searchDebounceTimer = setTimeout(() => {
+    loadCurrentPageHandles()
+  }, 300)
 }
 
 const filteredAndSorted = computed(() => {
@@ -451,22 +461,22 @@ const visiblePages = computed(() => {
 function goToPage(page: number) {
   if (page < 1 || page > totalPages.value) return
   currentPage.value = page
-  contentAreaRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
   loadCurrentPageHandles()
 }
 
 async function loadCurrentPageHandles() {
-  const wallpapers = displayedWallpapers.value
+  const wallpapers = pagedWallpapers.value
   const folderNames = wallpapers.map(w => w.folderName)
   await loadPageHandles(folderNames)
 }
 
 function onPageSizeChange() {
-  currentPage.value = 1
+  resetPage()
+  loadCurrentPageHandles()
 }
 
-watch([() => state.searchQuery, () => state.sortBy, () => state.sortAsc], () => {
-  currentPage.value = 1
+watch([() => state.sortBy, () => state.sortAsc], () => {
+  resetPage()
   loadCurrentPageHandles()
 })
 
@@ -534,7 +544,10 @@ function previewFile(file: FileSystemFileHandle) {
 }
 
 async function copyWallpaperPath() {
-  if (!contextMenu.wallpaper) return
+  if (!contextMenu.wallpaper?.folderHandle) {
+    showToast('目录尚未加载，请稍后再试')
+    return
+  }
   const wp = contextMenu.wallpaper
   try {
     const handle = wp.folderHandle
@@ -557,7 +570,10 @@ async function copyWallpaperName() {
 }
 
 async function copyWallpaperPathFromDetail() {
-  if (!selectedWallpaper.value) return
+  if (!selectedWallpaper.value?.folderHandle) {
+    showToast('目录尚未加载，请稍后再试')
+    return
+  }
   try {
     const handle = selectedWallpaper.value.folderHandle
     const path = await getFullPath(handle)
@@ -579,22 +595,6 @@ async function copyWallpaperNameFromDetail() {
 }
 
 async function getFullPath(handle: FileSystemDirectoryHandle): Promise<string> {
-  const pathParts: string[] = []
-  let current: FileSystemDirectoryHandle | null = handle
-
-  while (current) {
-    pathParts.unshift(current.name)
-    try {
-      current = (current as any).getParent ? await (current as any).getParent() : null
-    } catch {
-      current = null
-    }
-  }
-
-  if (pathParts.length > 1) {
-    return pathParts.join('\\')
-  }
-
   return `steamapps\\workshop\\content\\431960\\${handle.name}`
 }
 

@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import { getCachedWallpaper, cacheWallpapers, getCachedWallpapers, cacheDirectoryHandles, getCachedDirectoryHandles, deleteCachedWallpaper, deleteCachedDirectoryHandle } from './cache'
+import { getCachedWallpaper, cacheWallpapers, getCachedWallpapers, cacheDirectoryHandles, getCachedDirectoryHandles, deleteCachedWallpaper, deleteCachedDirectoryHandle, setSetting, getSetting } from './cache'
 import {
   type WorkshopMetadata,
   getAllWorkshopMetadata,
@@ -81,6 +81,8 @@ export type SortKey = 'name' | 'date' | 'category'
 
 const PAGE_SIZE = 30
 
+const coverUrlCache = new Map<string, string>()
+
 const state = reactive({
   wallpapers: [] as WallpaperItem[],
   categories: [] as CategoryInfo[],
@@ -102,7 +104,7 @@ const state = reactive({
   currentPage: 1
 })
 
-let allSubdirs: { name: string; handle: FileSystemDirectoryHandle; lastModified: number }[] = []
+let allSubdirs: { name: string; handle?: FileSystemDirectoryHandle; lastModified: number }[] = []
 let backgroundLoader: number | null = null
 let loadedDirNames = new Set<string>()
 let workshopContentHandle: FileSystemDirectoryHandle | null = null
@@ -189,7 +191,7 @@ function applyBulkWorkshopMetadata(): void {
 // Image extensions to detect covers
 const IMAGE_EXTS = ['.jpg', '.jpeg', '.png', '.webp', '.bmp', '.gif', '.svg']
 // Video extensions (for video wallpapers)
-const VIDEO_EXTS = ['.mp4', '.mkv', '.webm']
+const VIDEO_EXTS = ['.mp4', '.mkv', '.webm', '.avi', '.mov']
 
 // Map common folder patterns to categories
 const CATEGORY_MAP: Record<string, string> = {
@@ -354,7 +356,7 @@ function createFallbackWallpaper(folderName: string, dirHandle: FileSystemDirect
     id: `wp-${folderName}`,
     name: workshopMeta?.title || folderName,
     folderName,
-    coverUrl: '',
+    coverUrl: getCoverUrl(folderName) || '',
     category: getCategory(folderName),
     type: (workshopMeta?.type || 'scene') as WallpaperType,
     folderHandle: dirHandle,
@@ -418,6 +420,7 @@ async function scanDirectory(dirHandle: FileSystemDirectoryHandle): Promise<void
 
   const firstPage = allSubdirs.slice(0, PAGE_SIZE)
   for (const subdir of firstPage) {
+    if (!subdir.handle) continue
     try {
         const wallpaper = await scanWallpaperDir(subdir.name, subdir.handle)
         if (wallpaper) {
@@ -425,7 +428,6 @@ async function scanDirectory(dirHandle: FileSystemDirectoryHandle): Promise<void
           state.wallpapers.push(wallpaper)
           loadedDirNames.add(subdir.name)
         } else {
-          // scanWallpaperDir 失败时用文件夹名创建最小记录
           const fallback = createFallbackWallpaper(subdir.name, subdir.handle)
           scanned.set(fallback.folderName, fallback)
           state.wallpapers.push(fallback)
@@ -448,6 +450,8 @@ async function scanDirectory(dirHandle: FileSystemDirectoryHandle): Promise<void
     if (!scanned.has(rootWallpaper.folderName)) {
       scanned.set(rootWallpaper.folderName, rootWallpaper)
       state.wallpapers.push(rootWallpaper)
+      loadedDirNames.add(rootWallpaper.folderName)
+      state.loadedCount = state.wallpapers.length
     }
   }
 }
@@ -474,7 +478,7 @@ function scheduleBackgroundLoad(scanned: Map<string, WallpaperItem>) {
 
     for (let i = currentIndex; i < endIndex; i++) {
       const subdir = allSubdirs[i]
-      if (loadedDirNames.has(subdir.name) || scanned.has(subdir.name)) {
+      if (!subdir.handle || loadedDirNames.has(subdir.name) || scanned.has(subdir.name)) {
         continue
       }
       try {
@@ -528,6 +532,7 @@ function updateCategoriesAndTags() {
 }
 
 let cacheSaveScheduled = false
+let isSyncing = false
 function saveWallpaperCache(): void {
   if (cacheSaveScheduled) return
   cacheSaveScheduled = true
@@ -541,30 +546,41 @@ function saveWallpaperCache(): void {
         }
       }
       for (const subdir of allSubdirs) {
-        handleMap.set(subdir.name, subdir.handle)
+        if (subdir.handle && typeof (subdir.handle as any).getDirectoryHandle === 'function') {
+          handleMap.set(subdir.name, subdir.handle)
+        }
       }
       await cacheDirectoryHandles(handleMap)
     } catch { /* ignore */ }
     cacheSaveScheduled = false
 
-    if (workshopContentHandle && state.wallpapers.length === allSubdirs.length) {
-      await doIncrementalSync(workshopContentHandle)
+    if (!isSyncing && workshopContentHandle && state.wallpapers.length === allSubdirs.length && allSubdirs.length > 0) {
+      const hasRealHandles = allSubdirs.some(s => s.handle && typeof (s.handle as any).getDirectoryHandle === 'function')
+      if (hasRealHandles) {
+        isSyncing = true
+        try {
+          await doIncrementalSync(workshopContentHandle)
+        } finally {
+          isSyncing = false
+        }
+      }
     }
   })
 }
 
 async function scanWallpaperDir(
   folderName: string,
-  dirHandle: FileSystemDirectoryHandle
+  dirHandle: FileSystemDirectoryHandle,
+  forceRefresh = false
 ): Promise<WallpaperItem | null> {
-  let files: { name: string; handle: FileSystemFileHandle; priority: number }[] = []
+  let files: { name: string; handle?: FileSystemFileHandle; priority: number }[] = []
   let hasVideo = false
   let hasWeb = false
   let hasApp = false
   let projectJson: ProjectJson | null = null
-  let allFiles: { name: string; handle: FileSystemFileHandle }[] = []
+  let allFiles: { name: string; handle?: FileSystemFileHandle }[] = []
 
-  const cached = await getCachedWallpaper(folderName)
+  const cached = forceRefresh ? null : await getCachedWallpaper(folderName)
 
   if (!cached) {
     for await (const [name, handle] of dirHandle.entries()) {
@@ -589,7 +605,7 @@ async function scanWallpaperDir(
         const handle = await dirHandle.getFileHandle(fileName)
         allFiles.push({ name: fileName, handle })
       } catch {
-        allFiles.push({ name: fileName, handle: {} as FileSystemFileHandle })
+        allFiles.push({ name: fileName, handle: undefined })
       }
     }
     if (cached.coverFileName && !cached.fileNames.includes(cached.coverFileName)) {
@@ -630,11 +646,11 @@ async function scanWallpaperDir(
 
   const coverFile = files[0]
   const coverFileHandle = coverFile?.handle
-  let coverUrl = ''
+  let coverUrl = getCoverUrl(folderName) || ''
 
   const type = normalizeWallpaperType(projectJson?.type || workshopMeta?.type || cached?.type, hasVideo, hasWeb, hasApp)
   const category = getCategoryFromProject(projectJson) || cached?.category || getCategory(folderName)
-  const lastModified = cached ? cached.lastModified : await getFolderModifiedTime(dirHandle)
+  const lastModified = forceRefresh ? await getFolderModifiedTime(dirHandle) : (cached ? cached.lastModified : await getFolderModifiedTime(dirHandle))
   const name = projectJson?.title || workshopMeta?.title || cached?.name || formatWallpaperName(folderName)
   const tags = projectJson?.tags || workshopMeta?.tags || cached?.tags || []
   const description = projectJson?.description || cached?.description || ''
@@ -778,46 +794,15 @@ function buildContentRatings(wallpapers: WallpaperItem[]): { name: string; count
   ]
 }
 
-let cacheDB: IDBDatabase | null = null
-async function openCacheDB(): Promise<IDBDatabase> {
-  if (cacheDB) return cacheDB
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open('WallpaperBrowserSettings', 1)
-    req.onupgradeneeded = () => {
-      const db = req.result
-      if (!db.objectStoreNames.contains('handles')) {
-        db.createObjectStore('handles')
-      }
-    }
-    req.onsuccess = () => {
-      cacheDB = req.result
-      resolve(cacheDB)
-    }
-    req.onerror = () => reject(req.error)
-  })
-}
-
 async function saveDirectoryHandle(handle: FileSystemDirectoryHandle): Promise<void> {
   try {
-    const database = await openCacheDB()
-    return new Promise((resolve, reject) => {
-      const tx = database.transaction(['handles'], 'readwrite')
-      tx.objectStore('handles').put(handle, 'steamappsDir')
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error)
-    })
+    await setSetting('steamappsDir', handle)
   } catch { /* ignore */ }
 }
 
 async function getSavedDirectoryHandle(): Promise<FileSystemDirectoryHandle | null> {
   try {
-    const database = await openCacheDB()
-    return new Promise((resolve, reject) => {
-      const tx = database.transaction(['handles'], 'readonly')
-      const req = tx.objectStore('handles').get('steamappsDir')
-      req.onsuccess = () => resolve(req.result || null)
-      req.onerror = () => reject(req.error)
-    })
+    return (await getSetting<FileSystemDirectoryHandle | null>('steamappsDir', null)) || null
   } catch {
     return null
   }
@@ -857,8 +842,6 @@ async function scanDirectoryFromHandle(dirHandle: FileSystemDirectoryHandle): Pr
     state.sortBy = 'date'
     state.sortAsc = false
     state.currentPage = 1
-
-    scheduleIdleRefresh()
   } catch (err: any) {
     if (err.name !== 'AbortError') {
       state.error = `读取目录失败: ${err.message}`
@@ -885,12 +868,6 @@ export async function restoreSavedDirectory(): Promise<boolean> {
 
     const restored = await restoreFromCache(savedHandle)
     if (restored) {
-      scheduleIdleRefresh()
-
-      if (workshopContentHandle) {
-        doIncrementalSync(workshopContentHandle).catch(() => {})
-      }
-
       return true
     }
 
@@ -905,23 +882,17 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
     const cachedList = await getCachedWallpapers()
     if (!cachedList || cachedList.length === 0) return false
 
-    const now = Date.now()
-    const maxAge = 24 * 60 * 60 * 1000
-    const oldestValid = now - maxAge
-    const freshEntries = cachedList.filter(c => c.cachedAt > oldestValid)
-    if (freshEntries.length === 0) return false
-
     await loadWorkshopMetadata(dirHandle)
 
     const restored: WallpaperItem[] = []
-    for (const c of freshEntries) {
+    for (const c of cachedList) {
       restored.push({
         ...c,
         id: `wp-${c.folderName}`,
         type: c.type as WallpaperType,
         folderHandle: undefined,
         files: c.fileNames.map(name => ({ name, handle: undefined })),
-        coverUrl: '',
+        coverUrl: getCoverUrl(c.folderName) || '',
         coverFileHandle: undefined,
         description: c.description || ''
       })
@@ -947,51 +918,104 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
     state.currentPage = 1
     state.loading = false
     state.loadingMore = false
+
+    allSubdirs = restored.map(wp => ({
+      name: wp.folderName,
+      handle: wp.folderHandle || ({} as FileSystemDirectoryHandle),
+      lastModified: wp.lastModified
+    }))
+    loadedDirNames = new Set(restored.filter(wp => wp.folderHandle).map(wp => wp.folderName))
+
     return true
   } catch {
     return false
   }
 }
 
+let loadingPageHandles = false
+let pendingPageNames: string[] | null = null
+
 export async function loadPageHandles(folderNames: string[]): Promise<void> {
   if (!workshopContentHandle) return
 
-  for (const folderName of folderNames) {
-    const wallpaper = state.wallpapers.find(w => w.folderName === folderName)
-    if (!wallpaper || wallpaper.folderHandle) continue
+  if (loadingPageHandles) {
+    pendingPageNames = folderNames
+    return
+  }
 
-    try {
-      const subdirHandle = await workshopContentHandle.getDirectoryHandle(folderName)
-      wallpaper.folderHandle = subdirHandle
+  loadingPageHandles = true
+  try {
+    let currentNames = folderNames
+    while (currentNames.length > 0) {
+      pendingPageNames = null
 
-      const files: { name: string; handle?: FileSystemFileHandle }[] = []
-      for await (const [name, handle] of subdirHandle.entries()) {
-        if (handle.kind === 'file') {
-          files.push({ name, handle: handle as FileSystemFileHandle })
+      for (const folderName of currentNames) {
+        const wallpaper = state.wallpapers.find(w => w.folderName === folderName)
+        if (!wallpaper || wallpaper.folderHandle) continue
+
+        try {
+          const subdirHandle = await workshopContentHandle.getDirectoryHandle(folderName)
+          wallpaper.folderHandle = subdirHandle
+
+          const subdirEntry = allSubdirs.find(s => s.name === folderName)
+          if (subdirEntry) {
+            subdirEntry.handle = subdirHandle
+          } else {
+            allSubdirs.push({ name: folderName, handle: subdirHandle, lastModified: wallpaper.lastModified })
+          }
+          loadedDirNames.add(folderName)
+
+          const files: { name: string; handle?: FileSystemFileHandle }[] = []
+          for await (const [name, handle] of subdirHandle.entries()) {
+            if (handle.kind === 'file') {
+              files.push({ name, handle: handle as FileSystemFileHandle })
+            }
+          }
+          wallpaper.files = files
+
+          const coverFileName = wallpaper.previewFile || ''
+          const coverFile = files.find(f => f.name.toLowerCase() === coverFileName.toLowerCase()) ||
+            files.find(f => isImageFile(f.name)) ||
+            files.find(f => isVideoFile(f.name))
+          wallpaper.coverFileHandle = coverFile?.handle
+        } catch {
         }
       }
-      wallpaper.files = files
 
-      const coverFileName = wallpaper.previewFile || ''
-      const coverFile = files.find(f => f.name.toLowerCase() === coverFileName.toLowerCase()) ||
-        files.find(f => isImageFile(f.name)) ||
-        files.find(f => isVideoFile(f.name))
-      wallpaper.coverFileHandle = coverFile?.handle
-    } catch {
+      if (pendingPageNames) {
+        currentNames = pendingPageNames
+      } else {
+        break
+      }
     }
+  } finally {
+    loadingPageHandles = false
+    pendingPageNames = null
   }
 }
 
 let idleRefreshScheduled = false
 
 async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<{ added: number; removed: number; updated: number }> {
+  if (isSyncing) return { added: 0, removed: 0, updated: 0 }
+  isSyncing = true
+  try {
   const { handleMap } = await getCachedDirectoryHandles()
   const diskNames = new Set<string>()
+  const diskHandleMap = new Map<string, FileSystemDirectoryHandle>()
 
   for await (const [name, handle] of dirHandle.entries()) {
     if (handle.kind === 'directory') {
       diskNames.add(name)
-      if (!handleMap.has(name)) handleMap.set(name, handle as FileSystemDirectoryHandle)
+      const dirHandle = handle as FileSystemDirectoryHandle
+      diskHandleMap.set(name, dirHandle)
+      handleMap.set(name, dirHandle)
+    }
+  }
+
+  for (const name of Array.from(handleMap.keys())) {
+    if (!diskNames.has(name)) {
+      handleMap.delete(name)
     }
   }
   await cacheDirectoryHandles(handleMap)
@@ -1012,9 +1036,11 @@ async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<
   for (const name of diskNames) {
     if (!loadedSet.has(name)) continue
     const wallpaper = state.wallpapers.find(w => w.folderName === name)
-    if (!wallpaper || !wallpaper.folderHandle) continue
+    if (!wallpaper) continue
+    const folderHandle = wallpaper.folderHandle || diskHandleMap.get(name)
+    if (!folderHandle) continue
     try {
-      const newModified = await getFolderModifiedTime(wallpaper.folderHandle)
+      const newModified = await getFolderModifiedTime(folderHandle)
       if (newModified > wallpaper.lastModified) {
         updatedNames.push(name)
       }
@@ -1027,27 +1053,32 @@ async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<
     for (const name of deletedNames) {
       await deleteCachedWallpaper(name)
       await deleteCachedDirectoryHandle(name)
+      loadedDirNames.delete(name)
+      clearCoverUrl(name)
     }
   }
 
   if (newNames.length > 0) {
     for (const name of newNames) {
-      const handle = handleMap.get(name)
+      const handle = diskHandleMap.get(name)
       if (!handle) continue
       try {
         const wallpaper = await scanWallpaperDir(name, handle)
         if (wallpaper) {
           applyWorkshopMetadata(wallpaper)
           state.wallpapers.push(wallpaper)
+          loadedDirNames.add(name)
         } else {
           const fallback = createFallbackWallpaper(name, handle)
           applyWorkshopMetadata(fallback)
           state.wallpapers.push(fallback)
+          loadedDirNames.add(name)
         }
       } catch {
         const fallback = createFallbackWallpaper(name, handle)
         applyWorkshopMetadata(fallback)
         state.wallpapers.push(fallback)
+        loadedDirNames.add(name)
       }
     }
   }
@@ -1055,27 +1086,51 @@ async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<
   if (updatedNames.length > 0) {
     for (const name of updatedNames) {
       const wallpaper = state.wallpapers.find(w => w.folderName === name)
-      if (!wallpaper || !wallpaper.folderHandle) continue
+      if (!wallpaper) continue
+      const folderHandle = wallpaper.folderHandle || diskHandleMap.get(name)
+      if (!folderHandle) continue
       try {
-        const updated = await scanWallpaperDir(name, wallpaper.folderHandle)
+        const oldCoverUrl = wallpaper.coverUrl
+        const updated = await scanWallpaperDir(name, folderHandle, true)
         if (updated) {
+          updated.coverUrl = oldCoverUrl
           applyWorkshopMetadata(updated)
           const index = state.wallpapers.findIndex(w => w.folderName === name)
           if (index !== -1) state.wallpapers[index] = updated
+          if (folderHandle) loadedDirNames.add(name)
         }
       } catch {
       }
     }
   }
 
+  state.totalSubdirs = diskNames.size
+  state.loadedCount = state.wallpapers.length
+
+  allSubdirs = []
+  for (const name of diskNames) {
+    const handle = diskHandleMap.get(name) || handleMap.get(name)
+    const wp = state.wallpapers.find(w => w.folderName === name)
+    allSubdirs.push({
+      name,
+      handle: handle || ({} as FileSystemDirectoryHandle),
+      lastModified: wp?.lastModified || 0
+    })
+  }
+  sortSubdirsByWorkshopDate()
+
+  state.wallpapers.sort((a, b) => b.lastModified - a.lastModified)
+
+  updateCategoriesAndTags()
+
   if (deletedNames.length > 0 || newNames.length > 0 || updatedNames.length > 0) {
-    state.totalSubdirs = diskNames.size
-    state.loadedCount = state.wallpapers.length
-    updateCategoriesAndTags()
     saveWallpaperCache()
   }
 
   return { added: newNames.length, removed: deletedNames.length, updated: updatedNames.length }
+  } finally {
+    isSyncing = false
+  }
 }
 
 function scheduleIdleRefresh(): void {
@@ -1127,6 +1182,22 @@ async function refreshWorkshopCache(): Promise<void> {
     state.contentRatings = buildContentRatings(state.wallpapers)
     state.tags = buildTags(state.wallpapers)
   } catch { /* ignore */ }
+}
+
+export function setCoverUrl(folderName: string, url: string): void {
+  coverUrlCache.set(folderName, url)
+}
+
+export function clearCoverUrl(folderName: string): void {
+  const url = coverUrlCache.get(folderName)
+  if (url) {
+    URL.revokeObjectURL(url)
+    coverUrlCache.delete(folderName)
+  }
+}
+
+export function getCoverUrl(folderName: string): string | undefined {
+  return coverUrlCache.get(folderName)
 }
 
 export function useWallpaperStore() {
