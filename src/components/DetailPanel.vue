@@ -113,6 +113,9 @@
               :class="{ 'is-directory': item.kind === 'directory' }"
               @click="handleFileClick(item)"
               @dblclick="handleFileDoubleClick(item)"
+              @pointerdown="onPointerDown($event, item)"
+              @pointerup="onPointerUp"
+              @pointercancel="onPointerCancel"
               @contextmenu.prevent="showFileContextMenu($event, item)"
             >
               <svg v-if="item.kind === 'directory'" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" class="file-icon folder-icon">
@@ -478,10 +481,44 @@ const fileContextMenu = reactive({
   item: null as FileSystemItem | null
 })
 
-function showFileContextMenu(e: MouseEvent, item: FileSystemItem) {
+const LONG_PRESS_DURATION = 500
+let pressTimer: ReturnType<typeof setTimeout> | null = null
+let pressStartX = 0
+let pressStartY = 0
+let pressTargetItem: FileSystemItem | null = null
+
+function onPointerDown(e: PointerEvent, item: FileSystemItem) {
+  pressTargetItem = item
+  pressStartX = e.clientX
+  pressStartY = e.clientY
+  pressTimer = setTimeout(() => {
+    if (pressTargetItem) {
+      showFileContextMenuAt(pressStartX, pressStartY, pressTargetItem)
+    }
+    pressTimer = null
+  }, LONG_PRESS_DURATION)
+}
+
+function onPointerUp() {
+  if (pressTimer) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+  pressTargetItem = null
+}
+
+function onPointerCancel() {
+  if (pressTimer) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+  pressTargetItem = null
+}
+
+function showFileContextMenuAt(x: number, y: number, item: FileSystemItem) {
   fileContextMenu.visible = true
-  fileContextMenu.x = e.clientX
-  fileContextMenu.y = e.clientY
+  fileContextMenu.x = x
+  fileContextMenu.y = y
   fileContextMenu.item = item
 
   requestAnimationFrame(() => {
@@ -489,13 +526,17 @@ function showFileContextMenu(e: MouseEvent, item: FileSystemItem) {
     if (menuEl) {
       const rect = menuEl.getBoundingClientRect()
       if (rect.right > window.innerWidth) {
-        fileContextMenu.x = e.clientX - rect.width
+        fileContextMenu.x = x - rect.width
       }
       if (rect.bottom > window.innerHeight) {
-        fileContextMenu.y = e.clientY - rect.height
+        fileContextMenu.y = y - rect.height
       }
     }
   })
+}
+
+function showFileContextMenu(e: MouseEvent, item: FileSystemItem) {
+  showFileContextMenuAt(e.clientX, e.clientY, item)
 }
 
 async function copyFilePath() {
@@ -914,12 +955,11 @@ function onImageError(e: Event) {
     right: 0;
     width: 100%;
     min-width: 100%;
-    height: auto;
-    max-height: 60vh;
+    height: 55vh;
     border-left: none;
     border-top: 1px solid var(--border);
     border-radius: 16px 16px 0 0;
-    transform: translateY(calc(100% - 60px));
+    transform: translateY(calc(100% - 56px));
     transition: transform 0.3s ease;
     z-index: 900;
     background: var(--bg-secondary);
@@ -945,6 +985,9 @@ function onImageError(e: Event) {
 
   .panel-content {
     padding-top: 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .panel-cover {
@@ -952,23 +995,39 @@ function onImageError(e: Event) {
   }
 
   .panel-info {
-    padding: 16px;
+    padding: 12px 16px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
   }
 
   .panel-title {
     font-size: 15px;
+    margin-bottom: 8px;
   }
 
   .panel-stats {
     gap: 16px;
+    margin-bottom: 12px;
   }
 
   .stat-value {
     font-size: 18px;
   }
 
+  .panel-tags {
+    margin-bottom: 12px;
+  }
+
+  .panel-description {
+    margin-bottom: 12px;
+  }
+
   .panel-actions {
     flex-direction: row;
+    margin-bottom: 12px;
   }
 
   .action-btn {
@@ -978,12 +1037,18 @@ function onImageError(e: Event) {
   }
 
   .file-section {
-    max-height: 150px;
-    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   .file-list {
-    max-height: 120px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    max-height: none;
   }
 
   .empty-panel {
