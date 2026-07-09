@@ -535,6 +535,11 @@ function saveWallpaperCache(): void {
     try {
       await cacheWallpapers(state.wallpapers)
       const handleMap = new Map<string, FileSystemDirectoryHandle>()
+      for (const wp of state.wallpapers) {
+        if (wp.folderHandle) {
+          handleMap.set(wp.folderName, wp.folderHandle)
+        }
+      }
       for (const subdir of allSubdirs) {
         handleMap.set(subdir.name, subdir.handle)
       }
@@ -561,7 +566,6 @@ async function scanWallpaperDir(
 
   const cached = await getCachedWallpaper(folderName)
 
-  // 快速路径：有缓存数据时跳过 project.json 读取
   if (!cached) {
     for await (const [name, handle] of dirHandle.entries()) {
       if (handle.kind === 'file') {
@@ -580,14 +584,23 @@ async function scanWallpaperDir(
       }
     }
   } else {
-    for await (const [name, handle] of dirHandle.entries()) {
-      if (handle.kind === 'file') {
-        allFiles.push({ name, handle: handle as FileSystemFileHandle })
+    for (const fileName of cached.fileNames) {
+      try {
+        const handle = await dirHandle.getFileHandle(fileName)
+        allFiles.push({ name: fileName, handle })
+      } catch {
+        allFiles.push({ name: fileName, handle: {} as FileSystemFileHandle })
+      }
+    }
+    if (cached.coverFileName && !cached.fileNames.includes(cached.coverFileName)) {
+      try {
+        const handle = await dirHandle.getFileHandle(cached.coverFileName)
+        allFiles.push({ name: cached.coverFileName, handle })
+      } catch {
       }
     }
   }
 
-  // 检测媒体文件类型
   for (const f of allFiles) {
     const isImage = isImageFile(f.name)
     const isVideo = isVideoFile(f.name)

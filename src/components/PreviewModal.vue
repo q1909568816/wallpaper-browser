@@ -95,30 +95,7 @@ const videoRef = ref<HTMLVideoElement | null>(null)
 
 const previewUrl = computed(() => {
   if (generatedUrl.value) return generatedUrl.value
-  
-  if (!props.wallpaper) return ''
-  
-  let targetFile = props.file
-  
-  if (!targetFile) {
-    const mainFile = props.wallpaper.mainFile || props.wallpaper.previewFile
-    if (mainFile) {
-      targetFile = props.wallpaper.files.find(f => f.name.toLowerCase() === mainFile.toLowerCase())?.handle || null
-    }
-  }
-  
-  if (targetFile) {
-    try {
-      return URL.createObjectURL(targetFile.getFile())
-    } catch {
-      return ''
-    }
-  }
-  
-  if (props.wallpaper.coverUrl) {
-    return props.wallpaper.coverUrl
-  }
-  
+  if (props.wallpaper?.coverUrl) return props.wallpaper.coverUrl
   return ''
 })
 

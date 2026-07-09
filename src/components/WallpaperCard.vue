@@ -39,7 +39,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import type { WallpaperItem } from '../utils/wallpaperScanner'
 
 const props = defineProps<{
@@ -65,7 +65,6 @@ async function loadCover() {
     props.wallpaper.coverUrl = URL.createObjectURL(file)
     loadedCover.value = true
   } catch {
-    // ignore
   }
 }
 
@@ -86,6 +85,12 @@ onMounted(() => {
   )
   if (cardRef.value) {
     observer.observe(cardRef.value)
+  }
+})
+
+watch(() => props.wallpaper.coverFileHandle, (newHandle) => {
+  if (newHandle && !loadedCover.value) {
+    loadCover()
   }
 })
 
