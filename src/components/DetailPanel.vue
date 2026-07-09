@@ -629,7 +629,7 @@ function onImageError(e: Event) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .detail-panel {
   width: 360px;
   min-width: 360px;
@@ -639,6 +639,10 @@ function onImageError(e: Event) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+
+  &.expanded {
+    // handled in media query
+  }
 }
 
 .panel-content {
@@ -646,19 +650,19 @@ function onImageError(e: Event) {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
-}
 
-.panel-content::-webkit-scrollbar {
-  width: 4px;
-}
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
 
-.panel-content::-webkit-scrollbar-track {
-  background: transparent;
-}
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-.panel-content::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 2px;
+  &::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+  }
 }
 
 .panel-cover {
@@ -821,22 +825,22 @@ function onImageError(e: Event) {
   font-family: inherit;
   cursor: pointer;
   transition: all 0.15s ease;
-}
 
-.action-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--border-light);
-}
+  &:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--border-light);
+  }
 
-.action-btn.primary {
-  background: rgba(0, 120, 212, 0.08);
-  border-color: var(--accent);
-  color: var(--accent);
-}
+  &.primary {
+    background: rgba(0, 120, 212, 0.08);
+    border-color: var(--accent);
+    color: var(--accent);
 
-.action-btn.primary:hover {
-  background: rgba(0, 120, 212, 0.15);
+    &:hover {
+      background: rgba(0, 120, 212, 0.15);
+    }
+  }
 }
 
 .file-section {
@@ -884,10 +888,10 @@ function onImageError(e: Event) {
   cursor: pointer;
   font-size: 12px;
   font-family: inherit;
-}
 
-.breadcrumb-item:hover {
-  text-decoration: underline;
+  &:hover {
+    text-decoration: underline;
+  }
 }
 
 .breadcrumb-separator {
@@ -900,15 +904,15 @@ function onImageError(e: Event) {
   gap: 2px;
   max-height: 480px;
   overflow-y: auto;
-}
 
-.file-list::-webkit-scrollbar {
-  width: 4px;
-}
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
 
-.file-list::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 2px;
+  &::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+  }
 }
 
 .file-item {
@@ -922,14 +926,14 @@ function onImageError(e: Event) {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
-}
 
-.file-item:hover {
-  background: var(--bg-hover);
-}
+  &:hover {
+    background: var(--bg-hover);
+  }
 
-.file-item.is-directory {
-  font-weight: 500;
+  &.is-directory {
+    font-weight: 500;
+  }
 }
 
 .file-icon {
@@ -980,11 +984,11 @@ function onImageError(e: Event) {
   gap: 12px;
   padding: 40px;
   text-align: center;
-}
 
-.empty-panel p {
-  font-size: 13px;
-  color: var(--text-muted);
+  p {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
 }
 
 .file-context-menu {
@@ -995,7 +999,7 @@ function onImageError(e: Event) {
   display: none;
 }
 
-/* Mobile Styles */
+// Tablet
 @media (max-width: 1024px) {
   .detail-panel {
     width: 320px;
@@ -1003,6 +1007,7 @@ function onImageError(e: Event) {
   }
 }
 
+// Mobile
 @media (max-width: 768px) {
   .detail-panel {
     position: fixed;
@@ -1020,10 +1025,10 @@ function onImageError(e: Event) {
     z-index: 900;
     background: var(--bg-secondary);
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.15);
-  }
 
-  .detail-panel.expanded {
-    transform: translateY(0);
+    &.expanded {
+      transform: translateY(0);
+    }
   }
 
   .mobile-handle {
@@ -1109,15 +1114,15 @@ function onImageError(e: Event) {
 
   .empty-panel {
     padding: 24px;
-  }
 
-  .empty-panel svg {
-    width: 40px;
-    height: 40px;
-  }
+    svg {
+      width: 40px;
+      height: 40px;
+    }
 
-  .empty-panel p {
-    font-size: 12px;
+    p {
+      font-size: 12px;
+    }
   }
 }
 </style>

@@ -55,14 +55,14 @@ body {
   height: 100%;
 }
 
+// ========================================
+// Main Layout
+// ========================================
+
 .app {
   display: flex;
   height: 100vh;
 }
-
-/* ========================================
-   Main Content Area
-   ======================================== */
 
 .main-content {
   flex: 1;
@@ -72,9 +72,9 @@ body {
   background: var(--bg-primary);
 }
 
-/* ========================================
-   Top Bar / Search
-   ======================================== */
+// ========================================
+// Top Bar / Search
+// ========================================
 
 .top-bar {
   display: flex;
@@ -100,12 +100,12 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.15s;
-}
 
-.sidebar-toggle-btn:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--border-light);
+  &:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--border-light);
+  }
 }
 
 .top-refresh-btn {
@@ -122,12 +122,12 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.15s;
-}
 
-.top-refresh-btn:hover {
-  background: var(--bg-hover);
-  color: var(--accent);
-  border-color: var(--accent);
+  &:hover {
+    background: var(--bg-hover);
+    color: var(--accent);
+    border-color: var(--accent);
+  }
 }
 
 .search-wrapper {
@@ -157,15 +157,15 @@ body {
   font-family: inherit;
   outline: none;
   transition: all 0.2s ease;
-}
 
-.search-input::placeholder {
-  color: var(--text-muted);
-}
+  &::placeholder {
+    color: var(--text-muted);
+  }
 
-.search-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.15);
+  &:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.15);
+  }
 }
 
 .search-clear {
@@ -182,16 +182,16 @@ body {
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
+
+  &:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
 }
 
-.search-clear:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-/* ========================================
-   Filter Results Button
-   ======================================== */
+// ========================================
+// Filter Results Button
+// ========================================
 
 .filter-results-btn {
   display: flex;
@@ -209,33 +209,33 @@ body {
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
-}
 
-.filter-results-btn:hover {
-  background: var(--accent-hover);
-}
+  &:hover {
+    background: var(--accent-hover);
+  }
 
-.filter-results-btn .result-count {
-  background: rgba(255, 255, 255, 0.2);
-  padding: 1px 8px;
-  border-radius: 10px;
-  font-size: 12px;
-  min-width: 24px;
-  text-align: center;
+  .result-count {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    min-width: 24px;
+    text-align: center;
+  }
 }
 
 .filter-arrow {
   transition: transform 0.2s ease;
   opacity: 0.7;
+
+  &.rotated {
+    transform: rotate(180deg);
+  }
 }
 
-.filter-arrow.rotated {
-  transform: rotate(180deg);
-}
-
-/* ========================================
-   Sort Dropdown
-   ======================================== */
+// ========================================
+// Sort Dropdown
+// ========================================
 
 .sort-wrapper {
   position: relative;
@@ -257,20 +257,20 @@ body {
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;
-}
 
-.sort-btn:hover {
-  border-color: var(--border-light);
-  color: var(--text-primary);
+  &:hover {
+    border-color: var(--border-light);
+    color: var(--text-primary);
+  }
 }
 
 .sort-arrow {
   transition: transform 0.2s ease;
   opacity: 0.6;
-}
 
-.sort-arrow.rotated {
-  transform: rotate(180deg);
+  &.rotated {
+    transform: rotate(180deg);
+  }
 }
 
 .sort-dropdown {
@@ -282,7 +282,7 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 4px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   padding: 4px;
   animation: dropIn 0.15s ease;
 }
@@ -307,15 +307,15 @@ body {
   cursor: pointer;
   text-align: left;
   transition: all 0.1s ease;
-}
 
-.sort-option:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
+  &:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
 
-.sort-option.active {
-  color: var(--accent);
+  &.active {
+    color: var(--accent);
+  }
 }
 
 .sort-check-empty {
@@ -323,9 +323,9 @@ body {
   width: 14px;
 }
 
-/* ========================================
-   Content Area
-   ======================================== */
+// ========================================
+// Content Area
+// ========================================
 
 .content-area {
   flex: 1;
@@ -333,39 +333,48 @@ body {
   padding: 0;
   display: flex;
   flex-direction: column;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+
+    &:hover {
+      background: var(--border-light);
+    }
+  }
 }
 
-.content-area::-webkit-scrollbar {
-  width: 8px;
-}
-
-.content-area::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.content-area::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 4px;
-}
-
-.content-area::-webkit-scrollbar-thumb:hover {
-  background: var(--border-light);
-}
-
-/* ========================================
-   Wallpaper Grid
-   ======================================== */
+// ========================================
+// Wallpaper Grid
+// ========================================
 
 .wallpaper-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(192px, 1fr));
   gap: 4px;
   padding: 4px;
+
+  > * {
+    animation: fadeIn 0.3s ease forwards;
+  }
+
+  @for $i from 1 to 11 {
+    > *:nth-child(#{$i}) { animation-delay: #{($i - 1) * 30}ms; }
+  }
+  > *:nth-child(n+11) { animation-delay: 300ms; }
 }
 
-/* ========================================
-   Loading
-   ======================================== */
+// ========================================
+// Loading
+// ========================================
 
 .loading-overlay {
   display: flex;
@@ -374,6 +383,11 @@ body {
   justify-content: center;
   padding: 80px 0;
   gap: 16px;
+
+  p {
+    color: var(--text-secondary);
+    font-size: 14px;
+  }
 }
 
 .loading-spinner {
@@ -389,14 +403,9 @@ body {
   to { transform: rotate(360deg); }
 }
 
-.loading-overlay p {
-  color: var(--text-secondary);
-  font-size: 14px;
-}
-
-/* ========================================
-   Error / Empty States
-   ======================================== */
+// ========================================
+// Error / Empty States
+// ========================================
 
 .error-message {
   display: flex;
@@ -406,12 +415,12 @@ body {
   padding: 60px 20px;
   gap: 12px;
   color: var(--danger);
-}
 
-.error-message p {
-  font-size: 14px;
-  max-width: 400px;
-  text-align: center;
+  p {
+    font-size: 14px;
+    max-width: 400px;
+    text-align: center;
+  }
 }
 
 .empty-state {
@@ -421,16 +430,16 @@ body {
   justify-content: center;
   padding: 80px 20px;
   gap: 12px;
+
+  p {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
 }
 
-.empty-state p {
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
-/* ========================================
-   Welcome State
-   ======================================== */
+// ========================================
+// Welcome State
+// ========================================
 
 .welcome-state {
   flex: 1;
@@ -441,25 +450,25 @@ body {
   gap: 16px;
   padding: 40px;
   text-align: center;
+
+  h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+  }
+
+  > p {
+    color: var(--text-secondary);
+    font-size: 15px;
+    max-width: 500px;
+    line-height: 1.6;
+  }
 }
 
 .welcome-icon {
   margin-bottom: 8px;
   opacity: 0.7;
-}
-
-.welcome-state h2 {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--text-primary);
-  margin: 0;
-}
-
-.welcome-state > p {
-  color: var(--text-secondary);
-  font-size: 15px;
-  max-width: 500px;
-  line-height: 1.6;
 }
 
 .btn-primary {
@@ -478,16 +487,16 @@ body {
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: 0 0 12px rgba(0, 120, 212, 0.3);
-}
 
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 0 20px rgba(0, 120, 212, 0.4);
-  background: linear-gradient(to right, #60b5f0 0%, #106ebe 100%);
-}
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0 20px rgba(0, 120, 212, 0.4);
+    background: linear-gradient(to right, #60b5f0 0%, #106ebe 100%);
+  }
 
-.btn-primary:active {
-  transform: translateY(0);
+  &:active {
+    transform: translateY(0);
+  }
 }
 
 .hint {
@@ -495,44 +504,28 @@ body {
   font-size: 12px;
   color: var(--text-muted);
   line-height: 1.6;
+
+  code {
+    padding: 2px 6px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--text-secondary);
+  }
 }
 
-.hint code {
-  padding: 2px 6px;
-  background: rgba(255,255,255,0.06);
-  border-radius: 4px;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-/* ========================================
-   Animations
-   ======================================== */
+// ========================================
+// Animations
+// ========================================
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.wallpaper-grid > * {
-  animation: fadeIn 0.3s ease forwards;
-}
-
-.wallpaper-grid > *:nth-child(1) { animation-delay: 0ms; }
-.wallpaper-grid > *:nth-child(2) { animation-delay: 30ms; }
-.wallpaper-grid > *:nth-child(3) { animation-delay: 60ms; }
-.wallpaper-grid > *:nth-child(4) { animation-delay: 90ms; }
-.wallpaper-grid > *:nth-child(5) { animation-delay: 120ms; }
-.wallpaper-grid > *:nth-child(6) { animation-delay: 150ms; }
-.wallpaper-grid > *:nth-child(7) { animation-delay: 180ms; }
-.wallpaper-grid > *:nth-child(8) { animation-delay: 210ms; }
-.wallpaper-grid > *:nth-child(9) { animation-delay: 240ms; }
-.wallpaper-grid > *:nth-child(10) { animation-delay: 270ms; }
-.wallpaper-grid > *:nth-child(n+11) { animation-delay: 300ms; }
-
-/* ========================================
-   Scrollbar global
-   ======================================== */
+// ========================================
+// Scrollbar Global
+// ========================================
 
 ::-webkit-scrollbar {
   width: 6px;
@@ -545,24 +538,24 @@ body {
 ::-webkit-scrollbar-thumb {
   background: #c8c8c8;
   border-radius: 3px;
+
+  &:hover {
+    background: #a8a8a8;
+  }
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* ========================================
-   Selection
-   ======================================== */
+// ========================================
+// Selection
+// ========================================
 
 ::selection {
   background: rgba(0, 120, 212, 0.3);
   color: #fff;
 }
 
-/* ========================================
-   Pagination
-   ======================================== */
+// ========================================
+// Pagination
+// ========================================
 
 .pagination {
   display: flex;
@@ -588,17 +581,17 @@ body {
   cursor: pointer;
   transition: all 0.15s ease;
   padding: 0 4px;
-}
 
-.page-btn:hover:not(:disabled) {
-  border-color: var(--border-light);
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
+  &:hover:not(:disabled) {
+    border-color: var(--border-light);
+    color: var(--text-primary);
+    background: var(--bg-hover);
+  }
 
-.page-btn:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
 }
 
 .page-num.active {
@@ -625,22 +618,22 @@ body {
   margin-left: 16px;
   font-size: 12px;
   color: var(--text-muted);
-}
 
-.page-size-selector select {
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--bg-primary);
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-family: inherit;
-  cursor: pointer;
-  outline: none;
-}
+  select {
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    outline: none;
 
-.page-size-selector select:focus {
-  border-color: var(--accent);
+    &:focus {
+      border-color: var(--accent);
+    }
+  }
 }
 
 .top-bar-loading {
@@ -651,10 +644,10 @@ body {
   flex-shrink: 0;
   color: var(--text-muted);
   font-size: 11px;
-}
 
-.top-bar-loading .loading-spinner {
-  animation: floating-spin 1.2s linear infinite;
+  .loading-spinner {
+    animation: floating-spin 1.2s linear infinite;
+  }
 }
 
 .spinner-arc {
@@ -672,9 +665,9 @@ body {
   100% { stroke-dashoffset: 35; }
 }
 
-/* ========================================
-   Context Menu (Right-click)
-   ======================================== */
+// ========================================
+// Context Menu (Right-click)
+// ========================================
 
 .context-menu {
   position: fixed;
@@ -683,7 +676,7 @@ body {
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 4px;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   padding: 6px;
   animation: ctxIn 0.12s ease;
   overflow: hidden;
@@ -742,25 +735,25 @@ body {
   cursor: pointer;
   text-align: left;
   transition: all 0.1s ease;
+
+  &:hover {
+    background: rgba(0, 120, 212, 0.1);
+    color: var(--accent);
+
+    svg {
+      opacity: 1;
+    }
+  }
+
+  svg {
+    flex-shrink: 0;
+    opacity: 0.7;
+  }
 }
 
-.context-item:hover {
-  background: rgba(0, 120, 212, 0.1);
-  color: var(--accent);
-}
-
-.context-item svg {
-  flex-shrink: 0;
-  opacity: 0.7;
-}
-
-.context-item:hover svg {
-  opacity: 1;
-}
-
-/* ========================================
-   Toast Notification
-   ======================================== */
+// ========================================
+// Toast Notification
+// ========================================
 
 .copy-toast {
   position: fixed;
@@ -789,21 +782,17 @@ body {
   transition: all 0.2s ease;
 }
 
-.toast-enter-from {
-  opacity: 0;
-  transform: translateX(-50%) translateY(12px);
-}
-
+.toast-enter-from,
 .toast-leave-to {
   opacity: 0;
   transform: translateX(-50%) translateY(12px);
 }
 
-/* ========================================
-   Mobile Responsive Styles
-   ======================================== */
+// ========================================
+// Mobile Responsive Styles
+// ========================================
 
-/* Tablet (768px - 1024px) */
+// Tablet (768px - 1024px)
 @media (max-width: 1024px) {
   :root {
     --sidebar-width: 240px;
@@ -823,7 +812,7 @@ body {
   }
 }
 
-/* Mobile (< 768px) */
+// Mobile (< 768px)
 @media (max-width: 768px) {
   :root {
     --sidebar-width: 100%;
@@ -877,15 +866,15 @@ body {
   .welcome-state {
     padding: 24px 16px;
     gap: 12px;
-  }
 
-  .welcome-state h2 {
-    font-size: 22px;
-  }
+    h2 {
+      font-size: 22px;
+    }
 
-  .welcome-state > p {
-    font-size: 14px;
-    padding: 0 8px;
+    > p {
+      font-size: 14px;
+      padding: 0 8px;
+    }
   }
 
   .btn-primary {
@@ -932,18 +921,14 @@ body {
     padding: 8px 16px;
   }
 
-  .toast-enter-from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-
+  .toast-enter-from,
   .toast-leave-to {
     opacity: 0;
     transform: translateY(12px);
   }
 }
 
-/* Small Mobile (< 480px) */
+// Small Mobile (< 480px)
 @media (max-width: 480px) {
   .wallpaper-grid {
     grid-template-columns: repeat(2, 1fr);

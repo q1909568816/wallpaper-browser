@@ -267,7 +267,7 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .preview-modal {
   position: fixed;
   inset: 0;
@@ -275,6 +275,15 @@ onUnmounted(() => {
   background: rgba(0, 0, 0, 0.95);
   display: flex;
   flex-direction: column;
+
+  :deep(&:fullscreen) {
+    background: #000;
+
+    .preview-header,
+    .preview-footer {
+      background: rgba(0, 0, 0, 0.9);
+    }
+  }
 }
 
 .preview-header {
@@ -315,16 +324,16 @@ onUnmounted(() => {
   color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
-}
 
-.control-btn:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--text-primary);
-}
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+  }
 
-.control-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .scale-label {
@@ -346,11 +355,11 @@ onUnmounted(() => {
   color: var(--text-muted);
   cursor: pointer;
   transition: all 0.15s ease;
-}
 
-.close-btn:hover {
-  background: rgba(255, 67, 67, 0.2);
-  color: #ff4343;
+  &:hover {
+    background: rgba(255, 67, 67, 0.2);
+    color: #ff4343;
+  }
 }
 
 .preview-content {
@@ -378,10 +387,10 @@ onUnmounted(() => {
   justify-content: center;
   overflow: hidden;
   cursor: grab;
-}
 
-.image-container:active {
-  cursor: grabbing;
+  &:active {
+    cursor: grabbing;
+  }
 }
 
 .preview-image {
@@ -406,14 +415,7 @@ onUnmounted(() => {
   background: #fff;
 }
 
-.preview-unsupported {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
-  color: var(--text-muted);
-}
-
+.preview-unsupported,
 .preview-loading {
   display: flex;
   flex-direction: column;
@@ -466,14 +468,5 @@ onUnmounted(() => {
 .preview-enter-from,
 .preview-leave-to {
   opacity: 0;
-}
-
-:deep(.preview-modal:fullscreen) {
-  background: #000;
-}
-
-:deep(.preview-modal:fullscreen) .preview-header,
-:deep(.preview-modal:fullscreen) .preview-footer {
-  background: rgba(0, 0, 0, 0.9);
 }
 </style>

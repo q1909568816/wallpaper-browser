@@ -277,7 +277,7 @@ function toggleContentRating(name: string) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .sidebar {
   width: 260px;
   min-width: 260px;
@@ -289,12 +289,16 @@ function toggleContentRating(name: string) {
   overflow: hidden;
   position: relative;
   transition: width 0.25s ease, min-width 0.25s ease;
-}
 
-.sidebar.collapsed {
-  width: 0;
-  min-width: 0;
-  border-right: none;
+  &.collapsed {
+    width: 0;
+    min-width: 0;
+    border-right: none;
+  }
+
+  &.mobile-open {
+    // handled in media query
+  }
 }
 
 .sidebar-header {
@@ -322,19 +326,19 @@ function toggleContentRating(name: string) {
   display: flex;
   flex-direction: column;
   gap: 8px;
-}
 
-.sidebar-content::-webkit-scrollbar {
-  width: 4px;
-}
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
 
-.sidebar-content::-webkit-scrollbar-track {
-  background: transparent;
-}
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-.sidebar-content::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 2px;
+  &::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+  }
 }
 
 .current-dir-wrap {
@@ -353,11 +357,11 @@ function toggleContentRating(name: string) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
 
-.current-dir svg {
-  flex-shrink: 0;
-  opacity: 0.6;
+  svg {
+    flex-shrink: 0;
+    opacity: 0.6;
+  }
 }
 
 .filter-section {
@@ -376,10 +380,14 @@ function toggleContentRating(name: string) {
   cursor: pointer;
   color: var(--text-muted);
   transition: color 0.15s ease;
-}
 
-.section-header:hover {
-  color: var(--text-secondary);
+  &:hover {
+    color: var(--text-secondary);
+  }
+
+  svg {
+    transition: transform 0.2s ease;
+  }
 }
 
 .section-label {
@@ -388,10 +396,6 @@ function toggleContentRating(name: string) {
   color: inherit;
   text-transform: uppercase;
   letter-spacing: 1px;
-}
-
-.section-header svg {
-  transition: transform 0.2s ease;
 }
 
 .section-items {
@@ -410,17 +414,17 @@ function toggleContentRating(name: string) {
   border-radius: 4px;
   transition: background 0.15s ease;
   user-select: none;
-}
 
-.filter-item:hover {
-  background: var(--bg-hover);
-}
+  &:hover {
+    background: var(--bg-hover);
+  }
 
-.filter-item input[type="checkbox"] {
-  width: 14px;
-  height: 14px;
-  cursor: pointer;
-  accent-color: var(--accent);
+  input[type="checkbox"] {
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    accent-color: var(--accent);
+  }
 }
 
 .filter-icon {
@@ -469,15 +473,15 @@ function toggleContentRating(name: string) {
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s ease;
+
+  &:hover {
+    background: rgba(0, 120, 212, 0.08);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
-.btn-open-dir:hover {
-  background: rgba(0, 120, 212, 0.08);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-/* Mobile Styles */
+// Mobile Styles
 .sidebar-overlay {
   position: fixed;
   inset: 0;
@@ -503,17 +507,17 @@ function toggleContentRating(name: string) {
     transform: translateX(-100%);
     transition: transform 0.3s ease;
     box-shadow: none;
-  }
 
-  .sidebar.mobile-open {
-    transform: translateX(0);
-    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
-  }
+    &.mobile-open {
+      transform: translateX(0);
+      box-shadow: 4px 0 24px rgba(0, 0, 0, 0.3);
+    }
 
-  .sidebar.collapsed {
-    transform: translateX(-100%);
-    width: 280px;
-    min-width: 280px;
+    &.collapsed {
+      transform: translateX(-100%);
+      width: 280px;
+      min-width: 280px;
+    }
   }
 
   .sidebar-header {

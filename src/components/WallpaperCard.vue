@@ -153,7 +153,7 @@ function onImageError(e: Event) {
 }
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 .wallpaper-card {
   position: relative;
   background: var(--bg-card);
@@ -162,17 +162,34 @@ function onImageError(e: Event) {
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   border: 2px solid transparent;
-}
 
-.wallpaper-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  border-color: var(--border);
-}
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    border-color: var(--border);
 
-.wallpaper-card.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.2);
+    .card-cover img {
+      transform: scale(1.05);
+    }
+
+    .card-overlay {
+      opacity: 1;
+    }
+
+    .card-preview-btn {
+      opacity: 1;
+    }
+  }
+
+  &.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.2);
+
+    .card-preview-btn {
+      right: 30px;
+      opacity: 1;
+    }
+  }
 }
 
 .card-cover {
@@ -180,17 +197,13 @@ function onImageError(e: Event) {
   aspect-ratio: 16 / 10;
   overflow: hidden;
   background: var(--bg-tertiary);
-}
 
-.card-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s ease;
-}
-
-.wallpaper-card:hover .card-cover img {
-  transform: scale(1.05);
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+  }
 }
 
 .card-overlay {
@@ -200,10 +213,6 @@ function onImageError(e: Event) {
   opacity: 0;
   transition: opacity 0.2s ease;
   pointer-events: none;
-}
-
-.wallpaper-card:hover .card-overlay {
-  opacity: 1;
 }
 
 .card-category {
@@ -249,19 +258,10 @@ function onImageError(e: Event) {
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.2s ease, background 0.2s ease;
-}
 
-.wallpaper-card:hover .card-preview-btn {
-  opacity: 1;
-}
-
-.card-preview-btn:hover {
-  background: rgba(0, 120, 212, 0.85);
-}
-
-.wallpaper-card.selected .card-preview-btn {
-  right: 30px;
-  opacity: 1;
+  &:hover {
+    background: rgba(0, 120, 212, 0.85);
+  }
 }
 
 .card-name-overlay {
@@ -310,35 +310,35 @@ function onImageError(e: Event) {
   color: var(--text-secondary);
   background: var(--bg-hover-dark);
   border-bottom: 1px solid var(--border);
-}
 
-.file-list-header button {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 16px;
-  line-height: 1;
-  padding: 0 4px;
-}
+  button {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 4px;
 
-.file-list-header button:hover {
-  color: var(--text-primary);
+    &:hover {
+      color: var(--text-primary);
+    }
+  }
 }
 
 .file-list-body {
   overflow-y: auto;
   max-height: 160px;
   padding: 4px 0;
-}
 
-.file-list-body::-webkit-scrollbar {
-  width: 4px;
-}
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
 
-.file-list-body::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 2px;
+  &::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 2px;
+  }
 }
 
 .file-item {
@@ -348,10 +348,10 @@ function onImageError(e: Event) {
   padding: 5px 10px;
   font-size: 12px;
   color: var(--text-secondary);
-}
 
-.file-item:hover {
-  background: var(--bg-hover);
+  &:hover {
+    background: var(--bg-hover);
+  }
 }
 
 .file-icon {
@@ -365,7 +365,7 @@ function onImageError(e: Event) {
   white-space: nowrap;
 }
 
-/* Mobile - always show preview button */
+// Mobile - always show preview button
 @media (max-width: 768px) {
   .card-preview-btn {
     opacity: 1;
@@ -373,17 +373,19 @@ function onImageError(e: Event) {
     height: 28px;
   }
 
-  .wallpaper-card.selected .card-preview-btn {
-    right: 32px;
-  }
+  .wallpaper-card {
+    &.selected .card-preview-btn {
+      right: 32px;
+    }
 
-  .wallpaper-card:hover .card-cover img {
-    transform: none;
-  }
+    &:hover {
+      transform: none;
+      box-shadow: none;
 
-  .wallpaper-card:hover {
-    transform: none;
-    box-shadow: none;
+      .card-cover img {
+        transform: none;
+      }
+    }
   }
 }
 </style>
