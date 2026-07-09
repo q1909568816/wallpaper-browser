@@ -802,12 +802,12 @@ function onImageError(e: Event) {
 
 .panel-actions {
   display: flex;
-  flex-direction: column;
   gap: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .action-btn {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1087,13 +1087,7 @@ function onImageError(e: Event) {
     margin-bottom: 12px;
   }
 
-  .panel-actions {
-    flex-direction: row;
-    margin-bottom: 12px;
-  }
-
   .action-btn {
-    flex: 1;
     padding: 8px;
     font-size: 12px;
   }
