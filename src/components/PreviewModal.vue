@@ -124,7 +124,7 @@ const typeLabel = computed(() => {
 
 const isImage = computed(() => {
   const ext = fileName.value.toLowerCase()
-  return IMAGE_EXTS.some(e => ext.endsWith(e)) || (!props.file && props.wallpaper?.type === 'scene' && !isWebFile)
+  return IMAGE_EXTS.some(e => ext.endsWith(e)) || (!props.file && props.wallpaper?.type === 'scene' && !isWebFile.value)
 })
 
 const isVideo = computed(() => {
@@ -134,7 +134,7 @@ const isVideo = computed(() => {
 
 const isWeb = computed(() => {
   const ext = fileName.value.toLowerCase()
-  return WEB_EXTS.some(e => ext.endsWith(e)) || (!props.file && isWebFile)
+  return WEB_EXTS.some(e => ext.endsWith(e)) || (!props.file && isWebFile.value)
 })
 
 const isWebFile = computed(() => {

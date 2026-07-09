@@ -488,6 +488,7 @@ let pressStartY = 0
 let pressTargetItem: FileSystemItem | null = null
 
 function onPointerDown(e: PointerEvent, item: FileSystemItem) {
+  e.preventDefault()
   pressTargetItem = item
   pressStartX = e.clientX
   pressStartY = e.clientY
@@ -870,6 +871,9 @@ function onImageError(e: Event) {
   border-radius: 4px;
   transition: background 0.15s ease;
   cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .file-item:hover {
