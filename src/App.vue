@@ -16,6 +16,7 @@
       @select-tag="handleSelectTags"
       @select-content-rating="handleSelectContentRatings"
       @open-directory="openDirectory"
+      @toggle="toggleSidebar"
     />
 
     <main class="main-content">
@@ -313,7 +314,8 @@ const {
 const typeCounts = computed(() => getTypeCounts())
 
 const selectedWallpaper = ref<WallpaperItem | null>(null)
-const sidebarCollapsed = ref(false)
+const isMobile = ref(window.innerWidth <= 768)
+const sidebarCollapsed = ref(isMobile.value)
 
 const sortLabels: Record<string, string> = {
   'name': '名称',
@@ -334,6 +336,13 @@ function setSort(key: SortKey) {
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
+function onResize() {
+  isMobile.value = window.innerWidth <= 768
+  if (isMobile.value) {
+    sidebarCollapsed.value = true
+  }
 }
 
 async function handleRefresh() {
@@ -361,13 +370,17 @@ function onDocumentClick(e: MouseEvent) {
 
 onMounted(async () => {
   document.addEventListener('click', onDocumentClick)
+  window.addEventListener('resize', onResize)
   const restored = await restoreSavedDirectory()
   if (!restored) {
     state.loading = false
   }
   await loadCurrentPageHandles()
 })
-onUnmounted(() => document.removeEventListener('click', onDocumentClick))
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick)
+  window.removeEventListener('resize', onResize)
+})
 
 const currentPage = ref(1)
 const pageSize = ref(30)
