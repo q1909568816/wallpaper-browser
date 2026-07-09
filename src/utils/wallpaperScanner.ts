@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import { getCachedWallpaper, cacheWallpapers, getCachedWallpapers, cacheDirectoryHandles, getCachedDirectoryHandles } from './cache'
+import { getCachedWallpaper, cacheWallpapers, getCachedWallpapers, cacheDirectoryHandles, getCachedDirectoryHandles, deleteCachedWallpaper, deleteCachedDirectoryHandle } from './cache'
 import {
   type WorkshopMetadata,
   getAllWorkshopMetadata,
@@ -971,21 +971,17 @@ export async function loadPageHandles(folderNames: string[]): Promise<void> {
 
 let idleRefreshScheduled = false
 
-async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<{ added: number; removed: number }> {
+async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<{ added: number; removed: number; updated: number }> {
   const { handleMap } = await getCachedDirectoryHandles()
   const diskNames = new Set<string>()
 
-  if (handleMap.size >= state.wallpapers.length * 0.95) {
-    for (const name of handleMap.keys()) diskNames.add(name)
-  } else {
-    for await (const [name, handle] of dirHandle.entries()) {
-      if (handle.kind === 'directory') {
-        diskNames.add(name)
-        if (!handleMap.has(name)) handleMap.set(name, handle as FileSystemDirectoryHandle)
-      }
+  for await (const [name, handle] of dirHandle.entries()) {
+    if (handle.kind === 'directory') {
+      diskNames.add(name)
+      if (!handleMap.has(name)) handleMap.set(name, handle as FileSystemDirectoryHandle)
     }
-    await cacheDirectoryHandles(handleMap)
   }
+  await cacheDirectoryHandles(handleMap)
 
   const loadedSet = new Set(state.wallpapers.map(w => w.folderName))
 
@@ -999,8 +995,26 @@ async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<
     if (!diskNames.has(name)) deletedNames.push(name)
   }
 
+  const updatedNames: string[] = []
+  for (const name of diskNames) {
+    if (!loadedSet.has(name)) continue
+    const wallpaper = state.wallpapers.find(w => w.folderName === name)
+    if (!wallpaper || !wallpaper.folderHandle) continue
+    try {
+      const newModified = await getFolderModifiedTime(wallpaper.folderHandle)
+      if (newModified > wallpaper.lastModified) {
+        updatedNames.push(name)
+      }
+    } catch {
+    }
+  }
+
   if (deletedNames.length > 0) {
     state.wallpapers = state.wallpapers.filter(w => !deletedNames.includes(w.folderName))
+    for (const name of deletedNames) {
+      await deleteCachedWallpaper(name)
+      await deleteCachedDirectoryHandle(name)
+    }
   }
 
   if (newNames.length > 0) {
@@ -1025,15 +1039,30 @@ async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<
     }
   }
 
-  if (deletedNames.length > 0 || newNames.length > 0) {
+  if (updatedNames.length > 0) {
+    for (const name of updatedNames) {
+      const wallpaper = state.wallpapers.find(w => w.folderName === name)
+      if (!wallpaper || !wallpaper.folderHandle) continue
+      try {
+        const updated = await scanWallpaperDir(name, wallpaper.folderHandle)
+        if (updated) {
+          applyWorkshopMetadata(updated)
+          const index = state.wallpapers.findIndex(w => w.folderName === name)
+          if (index !== -1) state.wallpapers[index] = updated
+        }
+      } catch {
+      }
+    }
+  }
+
+  if (deletedNames.length > 0 || newNames.length > 0 || updatedNames.length > 0) {
     state.totalSubdirs = diskNames.size
     state.loadedCount = state.wallpapers.length
     updateCategoriesAndTags()
     saveWallpaperCache()
-    if (newNames.length > 0) await cacheDirectoryHandles(handleMap)
   }
 
-  return { added: newNames.length, removed: deletedNames.length }
+  return { added: newNames.length, removed: deletedNames.length, updated: updatedNames.length }
 }
 
 function scheduleIdleRefresh(): void {
@@ -1054,8 +1083,8 @@ function scheduleIdleRefresh(): void {
   }
 }
 
-export async function forceRefresh(): Promise<{ added: number; removed: number }> {
-  if (!steamappsDirHandle) return { added: 0, removed: 0 }
+export async function forceRefresh(): Promise<{ added: number; removed: number; updated: number }> {
+  if (!steamappsDirHandle) return { added: 0, removed: 0, updated: 0 }
 
   try { await refreshWorkshopCache() } catch { /* ignore */ }
 

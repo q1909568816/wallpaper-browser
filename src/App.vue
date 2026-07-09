@@ -340,8 +340,8 @@ async function handleRefresh() {
   if (!state.rootDirName) return
   try {
     const result = await forceRefresh()
-    if (result.added > 0 || result.removed > 0) {
-      showToast(`已同步：新增 ${result.added}，移除 ${result.removed}`)
+    if (result.added > 0 || result.removed > 0 || result.updated > 0) {
+      showToast(`已同步：新增 ${result.added}，移除 ${result.removed}，更新 ${result.updated}`)
     } else {
       showToast('数据已是最新')
     }
