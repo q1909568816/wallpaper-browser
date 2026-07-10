@@ -185,6 +185,20 @@
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
             </button>
             </template>
+            <div class="page-jumper" v-if="totalPages > 1">
+              <span>前往</span>
+              <input
+                v-model.number="jumpInput"
+                class="jump-input"
+                type="number"
+                :min="1"
+                :max="totalPages"
+                :placeholder="String(currentPage)"
+                @keyup.enter="handleJump"
+                @blur="handleJump"
+              />
+              <span>页</span>
+            </div>
             <div class="page-size-selector">
               <span>每页</span>
               <select v-model.number="pageSize" @change="onPageSizeChange">
@@ -388,6 +402,7 @@ onUnmounted(() => {
 
 const currentPage = ref(1)
 const pageSize = ref(30)
+const jumpInput = ref<number | null>(null)
 const contentAreaRef = ref<HTMLElement | null>(null)
 
 function resetPage() {
@@ -478,7 +493,18 @@ const visiblePages = computed(() => {
 function goToPage(page: number) {
   if (page < 1 || page > totalPages.value) return
   currentPage.value = page
+  jumpInput.value = null
   loadCurrentPageHandles()
+}
+
+function handleJump() {
+  if (jumpInput.value == null) return
+  const page = Math.round(jumpInput.value)
+  if (page < 1 || page > totalPages.value) {
+    jumpInput.value = null
+    return
+  }
+  goToPage(page)
 }
 
 async function loadCurrentPageHandles() {
