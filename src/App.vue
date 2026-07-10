@@ -243,9 +243,11 @@
       :wallpaper="selectedWallpaper"
       @copy-path="copyWallpaperPathFromDetail"
       @copy-name="copyWallpaperNameFromDetail"
+      @set-wallpaper="setWallpaperFromDetail"
       @preview-file="previewFile"
       @keep-toast="keepToast"
       @release-toast="releaseToast"
+      @show-toast="showToast"
     />
 
     <PreviewModal
@@ -269,6 +271,12 @@
           <span class="ctx-wallpaper-cat">{{ contextMenu.wallpaper?.category }}</span>
         </div>
         <div class="context-divider"></div>
+        <button class="context-item" @click="setWallpaper">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+          <span>设置为壁纸</span>
+        </button>
         <button class="context-item" @click="copyWallpaperPath">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -661,8 +669,21 @@ async function copyWallpaperNameFromDetail() {
   }
 }
 
+function setWallpaperFromDetail() {
+  if (!selectedWallpaper.value) return
+  showToast('正在设置壁纸...')
+  window.location.href = `wallpaper-browser://apply?id=${selectedWallpaper.value.folderName}`
+}
+
 async function getFullPath(handle: FileSystemDirectoryHandle): Promise<string> {
   return `steamapps\\workshop\\content\\431960\\${handle.name}`
+}
+
+function setWallpaper() {
+  if (!contextMenu.wallpaper) return
+  showToast('正在设置壁纸...')
+  window.location.href = `wallpaper-browser://apply?id=${contextMenu.wallpaper.folderName}`
+  contextMenu.visible = false
 }
 
 function openInWorkshop() {

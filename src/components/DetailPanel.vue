@@ -71,7 +71,13 @@
         </div>
 
         <div class="panel-actions">
-          <button class="action-btn primary" @click="$emit('copyPath')">
+          <button class="action-btn primary" @click="setWallpaper">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            设置为壁纸
+          </button>
+          <button class="action-btn" @click="$emit('copyPath')">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2"/>
               <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
@@ -371,9 +377,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   copyPath: []
   copyName: []
+  setWallpaper: []
   previewFile: [file: FileSystemFileHandle]
   keepToast: []
   releaseToast: []
+  showToast: [message: string]
 }>()
 
 interface FileSystemItem {
@@ -587,14 +595,20 @@ function showFileContextMenu(e: MouseEvent, item: FileSystemItem) {
   showFileContextMenuAt(e.clientX, e.clientY, item)
 }
 
+function setWallpaper() {
+  if (!props.wallpaper) return
+  emit('setWallpaper')
+}
+
 async function copyFilePath() {
   if (!fileContextMenu.item || !props.wallpaper) return
   try {
     const segments = ['steamapps', 'workshop', 'content', '431960', props.wallpaper.folderName, ...currentPath.value.slice(1), fileContextMenu.item.name]
     const path = segments.join('\\')
     await navigator.clipboard.writeText(path)
+    emit('showToast', '文件路径已复制到剪贴板')
   } catch {
-    // ignore
+    emit('showToast', '复制失败')
   }
 }
 
@@ -806,7 +820,7 @@ function onImageError(e: Event) {
 
 .panel-actions {
   display: flex;
-  gap: 8px;
+  gap: 5px;
   margin-bottom: 12px;
 }
 
@@ -815,13 +829,13 @@ function onImageError(e: Event) {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 10px;
+  gap: 5px;
+  padding: 5px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-secondary);
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.15s ease;
