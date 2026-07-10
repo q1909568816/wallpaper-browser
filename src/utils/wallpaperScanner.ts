@@ -1,5 +1,15 @@
 import { reactive } from 'vue'
 import { getCachedWallpaper, cacheWallpapers, getCachedWallpapers, cacheDirectoryHandles, getCachedDirectoryHandles, deleteCachedWallpaper, deleteCachedDirectoryHandle, setSetting, getSetting } from './cache'
+
+interface FilterState {
+  selectedCategories: string[]
+  selectedTags: string[]
+  selectedTypes: (WallpaperType | 'all')[]
+  selectedContentRatings: string[]
+  searchQuery: string
+  sortBy: SortKey
+  sortAsc: boolean
+}
 import {
   type WorkshopMetadata,
   getAllWorkshopMetadata,
@@ -110,6 +120,32 @@ let loadedDirNames = new Set<string>()
 let workshopContentHandle: FileSystemDirectoryHandle | null = null
 let workshopCache: Map<string, WorkshopMetadata> | null = null
 let steamappsDirHandle: FileSystemDirectoryHandle | null = null
+
+async function saveFilterState() {
+  const filterState: FilterState = {
+    selectedCategories: state.selectedCategories,
+    selectedTags: state.selectedTags,
+    selectedTypes: state.selectedTypes,
+    selectedContentRatings: state.selectedContentRatings,
+    searchQuery: state.searchQuery,
+    sortBy: state.sortBy,
+    sortAsc: state.sortAsc
+  }
+  await setSetting('filterState', filterState)
+}
+
+async function loadFilterState() {
+  const saved = await getSetting<FilterState>('filterState')
+  if (saved) {
+    state.selectedCategories = saved.selectedCategories || ['全部']
+    state.selectedTags = saved.selectedTags || []
+    state.selectedTypes = saved.selectedTypes || ['all']
+    state.selectedContentRatings = saved.selectedContentRatings || ['大众级', '家长指导级', '限制级']
+    state.searchQuery = saved.searchQuery || ''
+    state.sortBy = saved.sortBy || 'date'
+    state.sortAsc = saved.sortAsc ?? false
+  }
+}
 
 async function loadWorkshopMetadata(dirHandle: FileSystemDirectoryHandle): Promise<void> {
   workshopContentHandle = null
@@ -942,12 +978,13 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
     state.categories = buildCategories(state.wallpapers)
     state.tags = buildTags(state.wallpapers)
     state.contentRatings = buildContentRatings(state.wallpapers)
-    state.selectedCategories = ['全部']
-    state.selectedTags = state.tags.map(t => t.name)
-    state.selectedTypes = ['all']
-    state.searchQuery = ''
-    state.sortBy = 'date'
-    state.sortAsc = false
+
+    await loadFilterState()
+
+    if (state.selectedTags.length === 0) {
+      state.selectedTags = state.tags.map(t => t.name)
+    }
+
     state.currentPage = 1
     state.loading = false
     state.loadingMore = false
@@ -1271,18 +1308,22 @@ export function useWallpaperStore() {
 
   function setSelectedContentRatings(ratings: string[]) {
     state.selectedContentRatings = ratings
+    saveFilterState()
   }
 
   function setSelectedCategories(cats: string[]) {
     state.selectedCategories = cats
+    saveFilterState()
   }
 
   function setSelectedTags(tags: string[]) {
     state.selectedTags = tags
+    saveFilterState()
   }
 
   function setSelectedTypes(types: (WallpaperType | 'all')[]) {
     state.selectedTypes = types
+    saveFilterState()
   }
 
   function getTypeCounts(): Record<WallpaperType | 'all', number> {
@@ -1301,14 +1342,17 @@ export function useWallpaperStore() {
 
   function setSearch(query: string) {
     state.searchQuery = query
+    saveFilterState()
   }
 
   function setSortBy(key: SortKey) {
     state.sortBy = key
+    saveFilterState()
   }
 
   function setSortAsc(asc: boolean) {
     state.sortAsc = asc
+    saveFilterState()
   }
 
   const filteredWallpapers = () => {
