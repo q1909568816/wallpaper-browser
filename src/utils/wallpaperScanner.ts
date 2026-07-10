@@ -137,13 +137,18 @@ async function saveFilterState() {
 async function loadFilterState() {
   const saved = await getSetting<FilterState>('filterState')
   if (saved) {
-    state.selectedCategories = saved.selectedCategories?.length ? saved.selectedCategories : ['全部']
+    const validCategoryNames = new Set(state.categories.map(c => c.name))
+    state.selectedCategories = saved.selectedCategories?.filter(c => validCategoryNames.has(c)) || ['全部']
+    if (state.selectedCategories.length === 0) {
+      state.selectedCategories = ['全部']
+    }
     const validTagNames = new Set(state.tags.map(t => t.name))
     state.selectedTags = saved.selectedTags?.filter(t => validTagNames.has(t)) || []
-    if (state.selectedTags.length === 0) {
-      state.selectedTags = state.tags.map(t => t.name)
+    const validTypeNames = new Set<(WallpaperType | 'all')>(['all', 'scene', 'video', 'web', 'application'])
+    state.selectedTypes = saved.selectedTypes?.filter(t => validTypeNames.has(t)) || ['all']
+    if (state.selectedTypes.length === 0) {
+      state.selectedTypes = ['all']
     }
-    state.selectedTypes = saved.selectedTypes?.length ? saved.selectedTypes : ['all']
     const validRatings = new Set(state.contentRatings.map(r => r.name))
     state.selectedContentRatings = saved.selectedContentRatings?.filter(r => validRatings.has(r)) || []
     if (state.selectedContentRatings.length === 0) {
