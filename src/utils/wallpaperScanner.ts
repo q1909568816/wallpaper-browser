@@ -123,10 +123,10 @@ let steamappsDirHandle: FileSystemDirectoryHandle | null = null
 
 async function saveFilterState() {
   const filterState: FilterState = {
-    selectedCategories: state.selectedCategories,
-    selectedTags: state.selectedTags,
-    selectedTypes: state.selectedTypes,
-    selectedContentRatings: state.selectedContentRatings,
+    selectedCategories: [...state.selectedCategories],
+    selectedTags: [...state.selectedTags],
+    selectedTypes: [...state.selectedTypes],
+    selectedContentRatings: [...state.selectedContentRatings],
     searchQuery: state.searchQuery,
     sortBy: state.sortBy,
     sortAsc: state.sortAsc
