@@ -279,6 +279,63 @@ export async function cacheWallpapers(wallpapers: WallpaperItem[]): Promise<void
   }
 }
 
+export async function cacheSingleWallpaper(wp: WallpaperItem): Promise<void> {
+  try {
+    const database = await openDB()
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction([STORES.WALLPAPERS], 'readwrite')
+      const store = transaction.objectStore(STORES.WALLPAPERS)
+      const coverFileName = wp.coverFileHandle?.name || wp.previewFile || ''
+      const cached: CachedWallpaper = {
+        folderName: wp.folderName,
+        name: wp.name,
+        category: wp.category,
+        type: wp.type,
+        tags: [...wp.tags],
+        description: wp.description,
+        workshopId: wp.workshopId,
+        previewFile: wp.previewFile,
+        mainFile: wp.mainFile,
+        schemeColor: wp.schemeColor,
+        contentRating: wp.contentRating,
+        visibility: wp.visibility,
+        lastModified: wp.lastModified,
+        cachedAt: Date.now(),
+        fileNames: wp.files.map(f => f.name),
+        coverFileName,
+        rating: wp.rating,
+        ratingRounded: wp.ratingRounded,
+        fileSize: wp.fileSize,
+        fileSizeLabel: wp.fileSizeLabel,
+        favorite: wp.favorite,
+        subscriptionDate: wp.subscriptionDate,
+        updateDate: wp.updateDate,
+        youtube: wp.youtube,
+        authorSteamId: wp.authorSteamId,
+        allowMobileUpload: wp.allowMobileUpload,
+        official: wp.official
+      }
+      store.put(cached)
+      transaction.onerror = () => reject(transaction.error)
+      transaction.oncomplete = () => resolve()
+    })
+  } catch {
+  }
+}
+
+export async function cacheSingleDirectoryHandle(name: string, handle: FileSystemDirectoryHandle): Promise<void> {
+  try {
+    const database = await openDB()
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction([STORES.HANDLES], 'readwrite')
+      transaction.objectStore(STORES.HANDLES).put({ key: name, handle })
+      transaction.onerror = () => reject(transaction.error)
+      transaction.oncomplete = () => resolve()
+    })
+  } catch {
+  }
+}
+
 export async function getCachedWallpaper(folderName: string): Promise<CachedWallpaper | null> {
   try {
     const database = await openDB()

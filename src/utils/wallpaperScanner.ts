@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import { getCachedWallpaper, cacheWallpapers, getCachedWallpapers, cacheDirectoryHandles, getCachedDirectoryHandles, deleteCachedWallpaper, deleteCachedDirectoryHandle, setSetting, getSetting } from './cache'
+import { getCachedWallpaper, cacheWallpapers, getCachedWallpapers, cacheDirectoryHandles, getCachedDirectoryHandles, deleteCachedWallpaper, deleteCachedDirectoryHandle, cacheSingleWallpaper, cacheSingleDirectoryHandle, setSetting, getSetting } from './cache'
 
 interface FilterState {
   selectedCategories: string[]
@@ -476,21 +476,28 @@ async function scanDirectory(dirHandle: FileSystemDirectoryHandle): Promise<void
           scanned.set(wallpaper.folderName, wallpaper)
           state.wallpapers.push(wallpaper)
           loadedDirNames.add(subdir.name)
+          saveSingleWallpaperCache(wallpaper)
         } else {
           const fallback = createFallbackWallpaper(subdir.name, subdir.handle)
           scanned.set(fallback.folderName, fallback)
           state.wallpapers.push(fallback)
           loadedDirNames.add(subdir.name)
+          saveSingleWallpaperCache(fallback)
         }
       } catch {
         const fallback = createFallbackWallpaper(subdir.name, subdir.handle)
         scanned.set(fallback.folderName, fallback)
         state.wallpapers.push(fallback)
         loadedDirNames.add(subdir.name)
+        saveSingleWallpaperCache(fallback)
+      } finally {
+        state.loadedCount = state.wallpapers.length
+        // 第一页有壁纸加载后尽早结束 loading，让用户能看到已加载的内容
+        if (state.loading && state.wallpapers.length > 0) {
+          state.loading = false
+        }
       }
   }
-
-  state.loadedCount = state.wallpapers.length
 
   scheduleBackgroundLoad(scanned)
 
@@ -537,12 +544,14 @@ function scheduleBackgroundLoad(scanned: Map<string, WallpaperItem>) {
            scanned.set(wallpaper.folderName, wallpaper)
            state.wallpapers.push(wallpaper)
            loadedDirNames.add(subdir.name)
+           saveSingleWallpaperCache(wallpaper)
          } else {
            const fallback = createFallbackWallpaper(subdir.name, subdir.handle)
            applyWorkshopMetadata(fallback)
            scanned.set(fallback.folderName, fallback)
            state.wallpapers.push(fallback)
            loadedDirNames.add(subdir.name)
+           saveSingleWallpaperCache(fallback)
          }
        } catch {
          const fallback = createFallbackWallpaper(subdir.name, subdir.handle)
@@ -550,6 +559,7 @@ function scheduleBackgroundLoad(scanned: Map<string, WallpaperItem>) {
          scanned.set(fallback.folderName, fallback)
          state.wallpapers.push(fallback)
          loadedDirNames.add(subdir.name)
+         saveSingleWallpaperCache(fallback)
        } finally {
          state.loadedCount = state.wallpapers.length
        }
@@ -582,6 +592,23 @@ function updateCategoriesAndTags() {
 
 let cacheSaveScheduled = false
 let isSyncing = false
+
+const pendingSingleSaves = new Set<string>()
+function saveSingleWallpaperCache(wallpaper: WallpaperItem): void {
+  if (pendingSingleSaves.has(wallpaper.folderName)) return
+  pendingSingleSaves.add(wallpaper.folderName)
+  cacheSingleWallpaper(wallpaper)
+    .then(() => {
+      if (wallpaper.folderHandle) {
+        return cacheSingleDirectoryHandle(wallpaper.folderName, wallpaper.folderHandle)
+      }
+    })
+    .catch(() => { /* ignore */ })
+    .finally(() => {
+      pendingSingleSaves.delete(wallpaper.folderName)
+    })
+}
+
 function saveWallpaperCache(): void {
   if (cacheSaveScheduled) return
   cacheSaveScheduled = true
@@ -1000,10 +1027,139 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
     }))
     loadedDirNames = new Set(restored.filter(wp => wp.folderHandle).map(wp => wp.folderName))
 
+    // 启动后台增量同步：扫描磁盘上存在但缓存中缺失的目录
+    void continueIncrementalScan()
+
     return true
   } catch {
     return false
   }
+}
+
+async function continueIncrementalScan(): Promise<void> {
+  if (!workshopContentHandle) return
+
+  if (backgroundLoader) {
+    clearTimeout(backgroundLoader)
+    backgroundLoader = null
+  }
+
+  // 枚举磁盘上的实际目录
+  const diskNames = new Set<string>()
+  const diskHandleMap = new Map<string, FileSystemDirectoryHandle>()
+  try {
+    for await (const [name, handle] of workshopContentHandle.entries()) {
+      if (handle.kind === 'directory') {
+        diskNames.add(name)
+        diskHandleMap.set(name, handle as FileSystemDirectoryHandle)
+      }
+    }
+  } catch {
+    return
+  }
+
+  // 已缓存的目录名
+  const cachedNames = new Set(state.wallpapers.map(w => w.folderName))
+
+  // 删除缓存中有但磁盘没有的
+  const deletedNames: string[] = []
+  for (const name of cachedNames) {
+    if (!diskNames.has(name)) deletedNames.push(name)
+  }
+  if (deletedNames.length > 0) {
+    state.wallpapers = state.wallpapers.filter(w => !deletedNames.includes(w.folderName))
+    for (const name of deletedNames) {
+      await deleteCachedWallpaper(name)
+      await deleteCachedDirectoryHandle(name)
+      clearCoverUrl(name)
+    }
+  }
+
+  // 重建 allSubdirs（用真实 handle）
+  allSubdirs = []
+  for (const name of diskNames) {
+    const handle = diskHandleMap.get(name)
+    const wp = state.wallpapers.find(w => w.folderName === name)
+    allSubdirs.push({
+      name,
+      handle: handle || ({} as FileSystemDirectoryHandle),
+      lastModified: wp?.lastModified || 0
+    })
+  }
+  sortSubdirsByWorkshopDate()
+
+  state.totalSubdirs = diskNames.size
+  state.loadedCount = state.wallpapers.length
+
+  // 已缓存的视为已加载，不重复扫描
+  loadedDirNames = new Set(cachedNames)
+
+  // 检查是否有缺失的目录需要扫描
+  const hasMissing = Array.from(diskNames).some(n => !cachedNames.has(n))
+  if (!hasMissing) {
+    updateCategoriesAndTags()
+    return
+  }
+
+  // 后台扫描缺失的目录
+  state.loadingMore = true
+  const scanned = new Map<string, WallpaperItem>()
+  for (const wp of state.wallpapers) {
+    scanned.set(wp.folderName, wp)
+  }
+
+  let currentIndex = 0
+  const loadNextBatch = async () => {
+    if (currentIndex >= allSubdirs.length) {
+      backgroundLoader = null
+      state.loadingMore = false
+      saveWallpaperCache()
+      return
+    }
+
+    const batchSize = 10
+    const endIndex = Math.min(currentIndex + batchSize, allSubdirs.length)
+
+    for (let i = currentIndex; i < endIndex; i++) {
+      const subdir = allSubdirs[i]
+      if (!subdir.handle || loadedDirNames.has(subdir.name) || scanned.has(subdir.name)) {
+        continue
+      }
+      try {
+        const wallpaper = await scanWallpaperDir(subdir.name, subdir.handle)
+        if (wallpaper) {
+          applyWorkshopMetadata(wallpaper)
+          scanned.set(wallpaper.folderName, wallpaper)
+          state.wallpapers.push(wallpaper)
+          loadedDirNames.add(subdir.name)
+          saveSingleWallpaperCache(wallpaper)
+        } else {
+          const fallback = createFallbackWallpaper(subdir.name, subdir.handle)
+          applyWorkshopMetadata(fallback)
+          scanned.set(fallback.folderName, fallback)
+          state.wallpapers.push(fallback)
+          loadedDirNames.add(subdir.name)
+          saveSingleWallpaperCache(fallback)
+        }
+      } catch {
+        const fallback = createFallbackWallpaper(subdir.name, subdir.handle)
+        applyWorkshopMetadata(fallback)
+        scanned.set(fallback.folderName, fallback)
+        state.wallpapers.push(fallback)
+        loadedDirNames.add(subdir.name)
+        saveSingleWallpaperCache(fallback)
+      } finally {
+        state.loadedCount = state.wallpapers.length
+      }
+    }
+
+    currentIndex = endIndex
+    updateCategoriesAndTags()
+
+    backgroundLoader = window.setTimeout(loadNextBatch, 50)
+  }
+
+  backgroundLoader = window.setTimeout(loadNextBatch, 50)
 }
 
 let loadingPageHandles = false
