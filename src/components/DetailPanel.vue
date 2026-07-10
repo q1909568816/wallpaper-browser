@@ -393,7 +393,7 @@ const emit = defineEmits<{
   copyPath: []
   copyName: []
   setWallpaper: []
-  openFolder: []
+  openFolder: [subPath?: string]
   previewFile: [file: FileSystemFileHandle]
   keepToast: []
   releaseToast: []
@@ -649,7 +649,16 @@ function previewFile() {
 
 function openFileFolder() {
   if (!props.wallpaper) return
-  emit('openFolder')
+  const item = fileContextMenu.item
+  if (item) {
+    const parts = currentPath.value.slice(1)
+    if (item.kind === 'directory') {
+      parts.push(item.name)
+    }
+    emit('openFolder', parts.join('/'))
+  } else {
+    emit('openFolder')
+  }
   fileContextMenu.visible = false
 }
 

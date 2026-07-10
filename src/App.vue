@@ -708,10 +708,14 @@ function openFolder() {
   contextMenu.visible = false
 }
 
-function openFolderFromDetail() {
+function openFolderFromDetail(subPath?: string) {
   if (!selectedWallpaper.value) return
   showToast('正在打开目录...')
-  window.location.href = `wallpaper-browser://open?id=${encodeURIComponent(selectedWallpaper.value.folderName)}`
+  let url = `wallpaper-browser://open?id=${encodeURIComponent(selectedWallpaper.value.folderName)}`
+  if (subPath) {
+    url += `&path=${encodeURIComponent(subPath)}`
+  }
+  window.location.href = url
 }
 
 function openInWorkshop() {
