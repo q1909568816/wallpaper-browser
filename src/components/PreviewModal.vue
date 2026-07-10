@@ -42,11 +42,11 @@
           </div>
         </div>
         <div class="preview-content">
-          <div v-if="previewUrl" class="preview-media">
+          <div v-if="previewUrl || previewSrcdoc" class="preview-media">
             <div v-if="isImage" class="image-container" @wheel.prevent="handleWheel">
               <img :src="previewUrl" class="preview-image" :style="imageStyle" alt="预览"/>
             </div>
-            <iframe v-else-if="isWeb" :src="previewUrl" class="preview-iframe" sandbox="allow-scripts allow-same-origin"/>
+            <iframe v-else-if="isWeb" :srcdoc="previewSrcdoc" class="preview-iframe" sandbox="allow-scripts allow-same-origin"/>
             <video v-else-if="isVideo" ref="videoRef" :src="previewUrl" class="preview-video" controls autoplay loop/>
             <div v-else class="preview-unsupported">
               <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
@@ -74,6 +74,7 @@
 import { computed, watch, ref, onMounted, onUnmounted } from 'vue'
 import type { WallpaperItem } from '../utils/wallpaperScanner'
 import { TYPE_LIST } from '../utils/wallpaperScanner'
+import { buildWebPreview, cleanupWebPreview, readAllFilesRecursive } from '../utils/webPreview'
 
 const props = defineProps<{
   visible: boolean
@@ -91,10 +92,12 @@ const WEB_EXTS = ['.html', '.htm']
 const TEXT_EXTS = ['.json', '.txt', '.md', '.xml', '.csv', '.css', '.js', '.ts']
 
 const generatedUrl = ref('')
+const previewSrcdoc = ref('')
 const scale = ref(1)
 const isFullscreen = ref(false)
 const videoRef = ref<HTMLVideoElement | null>(null)
 let generateToken = 0
+let webPreviewCleanup: (() => void) | null = null
 
 const previewUrl = computed(() => {
   if (generatedUrl.value) return generatedUrl.value
@@ -236,9 +239,52 @@ function handleFullscreenChange() {
   isFullscreen.value = !!document.fullscreenElement
 }
 
+async function generateWebPreview() {
+  if (!props.visible || !props.wallpaper) return
+
+  const htmlFileName = props.file?.name || props.wallpaper.mainFile || props.wallpaper.previewFile || 'index.html'
+
+  const fileMap = new Map<string, Blob>()
+
+  // 用 folderHandle 读取（有真实目录句柄时最可靠）
+  const folderHandle = props.wallpaper.folderHandle
+  if (folderHandle && typeof folderHandle.getDirectoryHandle === 'function') {
+    try {
+      const subFiles = await readAllFilesRecursive(folderHandle)
+      for (const [key, blob] of subFiles) {
+        fileMap.set(key, blob)
+      }
+    } catch {
+    }
+  }
+
+  // fallback：用 wallpaper.files 中已有 handle 的文件
+  for (const f of props.wallpaper.files) {
+    if (!fileMap.has(f.name) && f.handle && typeof f.handle.getFile === 'function') {
+      try {
+        const file = await f.handle.getFile()
+        fileMap.set(f.name, file)
+      } catch {
+      }
+    }
+  }
+
+  if (fileMap.size === 0) return
+
+  const result = await buildWebPreview(fileMap, htmlFileName)
+  if (result) {
+    webPreviewCleanup = result.cleanup
+    previewSrcdoc.value = result.srcdoc
+  }
+}
+
 watch(() => [props.visible, props.file, props.wallpaper], () => {
   scale.value = 1
-  generateUrl()
+  if (isWeb.value) {
+    generateWebPreview()
+  } else {
+    generateUrl()
+  }
 }, { immediate: true })
 
 function cleanup() {
@@ -246,6 +292,11 @@ function cleanup() {
     URL.revokeObjectURL(generatedUrl.value)
     generatedUrl.value = ''
   }
+  if (webPreviewCleanup) {
+    webPreviewCleanup()
+    webPreviewCleanup = null
+  }
+  previewSrcdoc.value = ''
 }
 
 watch(() => props.visible, (val) => {
