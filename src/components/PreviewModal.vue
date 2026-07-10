@@ -42,10 +42,11 @@
           </div>
         </div>
         <div class="preview-content">
-          <div v-if="previewUrl || previewSrcdoc" class="preview-media">
+          <div v-if="previewUrl || previewSrcdoc || textUrl" class="preview-media">
             <div v-if="isImage" class="image-container" @wheel.prevent="handleWheel">
               <img :src="previewUrl" class="preview-image" :style="imageStyle" alt="预览"/>
             </div>
+            <iframe v-else-if="isText" :src="textUrl" class="preview-iframe" sandbox="allow-same-origin"/>
             <iframe v-else-if="isWeb" :srcdoc="previewSrcdoc" class="preview-iframe" sandbox="allow-scripts allow-same-origin"/>
             <video v-else-if="isVideo" ref="videoRef" :src="previewUrl" class="preview-video" controls autoplay loop/>
             <div v-else class="preview-unsupported">
@@ -91,8 +92,20 @@ const VIDEO_EXTS = ['.mp4', '.mkv', '.webm', '.avi', '.mov']
 const WEB_EXTS = ['.html', '.htm']
 const TEXT_EXTS = ['.json', '.txt', '.md', '.xml', '.csv', '.css', '.js', '.ts']
 
+const TEXT_MIME: Record<string, string> = {
+  '.json': 'application/json',
+  '.txt': 'text/plain',
+  '.md': 'text/plain',
+  '.xml': 'text/xml',
+  '.csv': 'text/plain',
+  '.css': 'text/plain',
+  '.js': 'text/plain',
+  '.ts': 'text/plain'
+}
+
 const generatedUrl = ref('')
 const previewSrcdoc = ref('')
+const textUrl = ref('')
 const scale = ref(1)
 const isFullscreen = ref(false)
 const videoRef = ref<HTMLVideoElement | null>(null)
@@ -138,7 +151,12 @@ const isVideo = computed(() => {
 
 const isWeb = computed(() => {
   const ext = fileName.value.toLowerCase()
-  return WEB_EXTS.some(e => ext.endsWith(e)) || TEXT_EXTS.some(e => ext.endsWith(e)) || (!props.file && isWebFile.value)
+  return WEB_EXTS.some(e => ext.endsWith(e)) || (!props.file && isWebFile.value)
+})
+
+const isText = computed(() => {
+  const ext = fileName.value.toLowerCase()
+  return TEXT_EXTS.some(e => ext.endsWith(e))
 })
 
 const isWebFile = computed(() => {
@@ -278,9 +296,43 @@ async function generateWebPreview() {
   }
 }
 
+async function generateTextPreview() {
+  const token = ++generateToken
+  if (!props.visible || !props.wallpaper) return
+
+  let targetHandle: FileSystemFileHandle | null = null
+  if (props.file && typeof (props.file as any).getFile === 'function') {
+    targetHandle = props.file
+  } else {
+    const mainFile = props.wallpaper.mainFile || props.wallpaper.previewFile || ''
+    const found = props.wallpaper.files.find(f => f.name.toLowerCase() === mainFile.toLowerCase())?.handle
+    if (found && typeof (found as any).getFile === 'function') {
+      targetHandle = found as FileSystemFileHandle
+    }
+  }
+  if (!targetHandle) return
+
+  try {
+    const file = await targetHandle.getFile()
+    const text = await file.text()
+    if (token !== generateToken) return
+    const lower = file.name.toLowerCase()
+    const ext = Object.keys(TEXT_MIME).find(e => lower.endsWith(e)) || '.txt'
+    const blob = new Blob([text], { type: `${TEXT_MIME[ext]};charset=utf-8` })
+    const oldUrl = textUrl.value
+    textUrl.value = URL.createObjectURL(blob)
+    if (oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl)
+  } catch {
+  }
+}
+
 watch(() => [props.visible, props.file, props.wallpaper], () => {
   scale.value = 1
-  if (isWeb.value) {
+  cleanup()
+  if (!props.visible) return
+  if (isText.value) {
+    generateTextPreview()
+  } else if (isWeb.value) {
     generateWebPreview()
   } else {
     generateUrl()
@@ -291,6 +343,10 @@ function cleanup() {
   if (generatedUrl.value.startsWith('blob:')) {
     URL.revokeObjectURL(generatedUrl.value)
     generatedUrl.value = ''
+  }
+  if (textUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(textUrl.value)
+    textUrl.value = ''
   }
   if (webPreviewCleanup) {
     webPreviewCleanup()

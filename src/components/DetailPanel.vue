@@ -56,7 +56,7 @@
           </div>
           <div class="scheme-color-preview">
             <div class="color-block" :style="{ backgroundColor: schemeColorCss }"></div>
-            <span class="color-value">{{ wallpaper.schemeColor }}</span>
+            <span class="color-value">{{ schemeColorHex }}</span>
           </div>
         </div>
 
@@ -71,7 +71,7 @@
         </div>
 
         <div class="panel-actions">
-          <button class="action-btn primary" @click="setWallpaper">
+          <button v-if="protocolAvailable" class="action-btn primary" @click="setWallpaper">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
             </svg>
@@ -90,6 +90,14 @@
               <path d="M14 2v6h6"/>
             </svg>
             复制名称
+          </button>
+        </div>
+        <div v-if="protocolAvailable" class="panel-actions panel-actions-secondary">
+          <button class="action-btn" @click="$emit('openFolder')">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 7a2 2 0 012-2h4l2 3h8a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+            </svg>
+            打开本地目录
           </button>
         </div>
 
@@ -178,6 +186,12 @@
             <circle cx="12" cy="12" r="3"/>
           </svg>
           <span>{{ isVideoFile(fileContextMenu.item?.name) ? '播放' : '预览' }}</span>
+        </button>
+        <button v-if="protocolAvailable" class="context-item" @click="openFileFolder">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 7a2 2 0 012-2h4l2 3h8a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+          </svg>
+          <span>打开本地目录</span>
         </button>
       </div>
     </Teleport>
@@ -372,12 +386,14 @@ const TAG_TRANSLATION: Record<string, string> = {
 
 const props = defineProps<{
   wallpaper: WallpaperItem | null
+  protocolAvailable?: boolean
 }>()
 
 const emit = defineEmits<{
   copyPath: []
   copyName: []
   setWallpaper: []
+  openFolder: []
   previewFile: [file: FileSystemFileHandle]
   keepToast: []
   releaseToast: []
@@ -445,6 +461,19 @@ const schemeColorCss = computed(() => {
     return `rgb(${r}, ${g}, ${b})`
   }
   return '#ccc'
+})
+
+const schemeColorHex = computed(() => {
+  if (!props.wallpaper?.schemeColor) return ''
+  const parts = props.wallpaper.schemeColor.trim().split(/\s+/)
+  if (parts.length >= 3) {
+    const toHex = (v: string) => {
+      const n = Math.min(255, Math.max(0, Math.round(parseFloat(v) * 255)))
+      return n.toString(16).padStart(2, '0')
+    }
+    return `#${toHex(parts[0])}${toHex(parts[1])}${toHex(parts[2])}`.toUpperCase()
+  }
+  return props.wallpaper.schemeColor
 })
 
 async function loadFiles(dirHandle: FileSystemDirectoryHandle) {
@@ -616,6 +645,12 @@ function previewFile() {
   if (fileContextMenu.item && fileContextMenu.item.kind === 'file') {
     emit('previewFile', fileContextMenu.item.handle as FileSystemFileHandle)
   }
+}
+
+function openFileFolder() {
+  if (!props.wallpaper) return
+  emit('openFolder')
+  fileContextMenu.visible = false
 }
 
 function onDocumentClick() {
@@ -822,6 +857,10 @@ function onImageError(e: Event) {
   display: flex;
   gap: 5px;
   margin-bottom: 12px;
+}
+
+.panel-actions-secondary {
+  margin-top: -6px;
 }
 
 .action-btn {

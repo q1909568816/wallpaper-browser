@@ -111,7 +111,8 @@ const state = reactive({
   sortAsc: false,
   totalSubdirs: 0,
   loadedCount: 0,
-  currentPage: 1
+  currentPage: 1,
+  protocolAvailable: false
 })
 
 let allSubdirs: { name: string; handle?: FileSystemDirectoryHandle; lastModified: number }[] = []
@@ -190,8 +191,25 @@ async function loadWorkshopMetadata(dirHandle: FileSystemDirectoryHandle): Promi
     steamappsDirHandle = dirHandle
   }
 
+  // 检测协议标记文件，判断自定义协议是否已安装
+  await detectProtocolMarker(dirHandle)
+
   // 从 IndexedDB 加载缓存数据
   workshopCache = await getAllWorkshopMetadata()
+}
+
+async function detectProtocolMarker(dirHandle: FileSystemDirectoryHandle): Promise<void> {
+  const MARKER = '.wpb-protocol'
+  const candidates: (FileSystemDirectoryHandle | null)[] = [dirHandle, workshopContentHandle]
+  for (const handle of candidates) {
+    if (!handle) continue
+    try {
+      await handle.getFileHandle(MARKER)
+      state.protocolAvailable = true
+      return
+    } catch { /* not found in this handle */ }
+  }
+  state.protocolAvailable = false
 }
 
 function applyWorkshopMetadata(wallpaper: WallpaperItem): void {
