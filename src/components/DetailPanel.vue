@@ -71,33 +71,40 @@
         </div>
 
         <div class="panel-actions">
-          <button v-if="protocolAvailable" class="action-btn primary" @click="setWallpaper">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          <button v-if="protocolAvailable" class="action-btn" @click="$emit('openFolder')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 7a2 2 0 012-2h4l2 3h8a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
             </svg>
-            设置为壁纸
+            <span>打开目录</span>
           </button>
           <button class="action-btn" @click="$emit('copyPath')">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2"/>
               <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
             </svg>
-            复制路径
+            <span>复制路径</span>
           </button>
           <button class="action-btn" @click="$emit('copyName')">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M4 7V4a2 2 0 012-2h8.5L20 7.5V20a2 2 0 01-2 2H6a2 2 0 01-2-2v-3"/>
               <path d="M14 2v6h6"/>
             </svg>
-            复制名称
+            <span>复制名称</span>
           </button>
         </div>
-        <div v-if="protocolAvailable" class="panel-actions panel-actions-secondary">
-          <button class="action-btn" @click="$emit('openFolder')">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 7a2 2 0 012-2h4l2 3h8a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+        <div class="panel-actions" v-if="protocolAvailable">
+          <button class="action-btn primary" @click="setWallpaper">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
             </svg>
-            打开本地目录
+            <span>设为壁纸</span>
+          </button>
+          <button class="action-btn" @click="$emit('addToPlaylist')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span>加入播放列表</span>
           </button>
         </div>
 
@@ -393,6 +400,7 @@ const emit = defineEmits<{
   copyPath: []
   copyName: []
   setWallpaper: []
+  addToPlaylist: []
   openFolder: [subPath?: string]
   previewFile: [file: FileSystemFileHandle]
   keepToast: []
@@ -865,11 +873,7 @@ function onImageError(e: Event) {
 .panel-actions {
   display: flex;
   gap: 5px;
-  margin-bottom: 12px;
-}
-
-.panel-actions-secondary {
-  margin-top: -6px;
+  margin-bottom: 6px;
 }
 
 .action-btn {

@@ -245,6 +245,7 @@
       @copy-path="copyWallpaperPathFromDetail"
       @copy-name="copyWallpaperNameFromDetail"
       @set-wallpaper="setWallpaperFromDetail"
+      @add-to-playlist="addToPlaylistFromDetail"
       @open-folder="openFolderFromDetail"
       @preview-file="previewFile"
       @keep-toast="keepToast"
@@ -278,6 +279,13 @@
             <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
           </svg>
           <span>设置为壁纸</span>
+        </button>
+        <button v-if="state.protocolAvailable" class="context-item" @click="addToPlaylist">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          <span>加入播放列表</span>
         </button>
         <button v-if="state.protocolAvailable" class="context-item" @click="openFolder">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
@@ -690,6 +698,12 @@ function setWallpaperFromDetail() {
   window.location.href = `wallpaper-browser://apply?id=${encodeURIComponent(selectedWallpaper.value.folderName)}`
 }
 
+function addToPlaylistFromDetail() {
+  if (!selectedWallpaper.value) return
+  showToast('正在加入播放列表...')
+  window.location.href = `wallpaper-browser://addplaylist?id=${encodeURIComponent(selectedWallpaper.value.folderName)}`
+}
+
 async function getFullPath(handle: FileSystemDirectoryHandle): Promise<string> {
   return `steamapps\\workshop\\content\\431960\\${handle.name}`
 }
@@ -698,6 +712,13 @@ function setWallpaper() {
   if (!contextMenu.wallpaper) return
   showToast('正在设置壁纸...')
   window.location.href = `wallpaper-browser://apply?id=${encodeURIComponent(contextMenu.wallpaper.folderName)}`
+  contextMenu.visible = false
+}
+
+function addToPlaylist() {
+  if (!contextMenu.wallpaper) return
+  showToast('正在加入播放列表...')
+  window.location.href = `wallpaper-browser://addplaylist?id=${encodeURIComponent(contextMenu.wallpaper.folderName)}`
   contextMenu.visible = false
 }
 

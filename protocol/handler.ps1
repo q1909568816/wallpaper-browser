@@ -102,17 +102,59 @@ $processName = [System.IO.Path]::GetFileNameWithoutExtension($weExe)
 $running = Get-Process -Name $processName -ErrorAction SilentlyContinue
 log "WE running=$($running -ne $null)"
 
-if (-not $running) {
-    Start-Process -FilePath $weExe -WindowStyle Hidden
-    Start-Sleep -Seconds 5
-    log "WE started"
+if ($action -eq "addplaylist") {
+    $weDir = Split-Path -Parent $weExe
+    $configPath = Join-Path $weDir 'config.json'
+    if (-not (Test-Path $configPath)) { log "EXIT: no config.json"; exit }
+    $mediaExtensions = @('.mp4', '.avi', '.mkv', '.webm', '.mov', '.wmv', '.pkg')
+    $mediaFile = Get-ChildItem $wallpaperDir -File | Where-Object { $mediaExtensions -contains $_.Extension } | Select-Object -First 1
+    if (-not $mediaFile) { log "EXIT: no media/scene file in wallpaper dir"; exit }
+    $mediaPath = $mediaFile.FullName.Replace('\', '/')
+    log "mediaPath=$mediaPath"
+    try {
+        $json = Get-Content $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $playlists = $json.cc.general.playlists
+        if (-not $playlists -or $playlists.Count -eq 0) {
+            $playlist = @{ name = '默认'; items = @(); settings = @{ delay = 1; mode = 'timer'; order = 'random'; transition = 'random'; transitiontime = 1500; updateonpause = $false; videosequence = $false } }
+            $playlists = @($playlist)
+        }
+        $target = $playlists[0]
+        if ($target.items -notcontains $mediaPath) {
+            $target.items += $mediaPath
+            $json.cc.general.playlists = $playlists
+            $json | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8 -Force
+            log "added to playlist: $mediaPath"
+            if ($running) {
+                $argsStr = "-control openWallpaper -file `"$wallpaperProject`""
+                $psi = New-Object System.Diagnostics.ProcessStartInfo
+                $psi.FileName = $weExe
+                $psi.Arguments = $argsStr
+                $psi.UseShellExecute = $false
+                $psi.CreateNoWindow = $true
+                [System.Diagnostics.Process]::Start($psi) | Out-Null
+                log "triggered WE refresh"
+            }
+        } else {
+            log "already in playlist"
+        }
+    } catch { log "config write error: $_" }
+    log "=== DONE addplaylist ==="
+    exit
 }
 
 $argsStr = "-control openWallpaper -file `"$wallpaperProject`""
-$psi = New-Object System.Diagnostics.ProcessStartInfo
-$psi.FileName = $weExe
-$psi.Arguments = $argsStr
-$psi.UseShellExecute = $false
-$psi.CreateNoWindow = $true
-[System.Diagnostics.Process]::Start($psi) | Out-Null
+
+if ($running) {
+    # WE 已运行：通过 IPC 静默切换，不创建窗口
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $weExe
+    $psi.Arguments = $argsStr
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    [System.Diagnostics.Process]::Start($psi) | Out-Null
+} else {
+    # WE 未运行：一步启动+应用壁纸，不弹主界面
+    Start-Process -FilePath $weExe -ArgumentList $argsStr -WindowStyle Hidden
+    Start-Sleep -Seconds 2
+}
 log "=== DONE ==="
