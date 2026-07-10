@@ -1,7 +1,6 @@
 import type { WallpaperItem } from './wallpaperScanner'
 
 const DB_NAME = 'WallpaperBrowserDB'
-const DB_VERSION = 5
 
 const STORES = {
   WALLPAPERS: 'wallpapers',
@@ -9,6 +8,8 @@ const STORES = {
   METADATA: 'metadata',
   SETTINGS: 'settings'
 }
+
+const REQUIRED_STORES = Object.values(STORES)
 
 interface CachedWallpaper {
   folderName: string
@@ -66,39 +67,68 @@ interface Settings {
 
 let db: IDBDatabase | null = null
 
+function createStoreIfNeeded(database: IDBDatabase, name: string) {
+  if (!database.objectStoreNames.contains(name)) {
+    if (name === STORES.WALLPAPERS) {
+      const store = database.createObjectStore(name, { keyPath: 'folderName' })
+      store.createIndex('lastModified', 'lastModified', { unique: false })
+      store.createIndex('category', 'category', { unique: false })
+    } else if (name === STORES.METADATA) {
+      const store = database.createObjectStore(name, { keyPath: 'workshopId' })
+      store.createIndex('subscriptionDate', 'subscriptionDate', { unique: false })
+    } else if (name === STORES.HANDLES) {
+      database.createObjectStore(name, { keyPath: 'key' })
+    } else if (name === STORES.SETTINGS) {
+      database.createObjectStore(name, { keyPath: 'key' })
+    }
+  }
+}
+
+function hasAllStores(database: IDBDatabase): boolean {
+  return REQUIRED_STORES.every(s => database.objectStoreNames.contains(s))
+}
+
 async function openDB(): Promise<IDBDatabase> {
   if (db) return db
 
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION)
+    const request = indexedDB.open(DB_NAME)
 
     request.onerror = () => reject(request.error)
 
     request.onsuccess = () => {
-      db = request.result
-      resolve(db)
+      const database = request.result
+
+      if (hasAllStores(database)) {
+        db = database
+        resolve(db)
+        return
+      }
+
+      const newVersion = database.version + 1
+      database.close()
+
+      const upgradeRequest = indexedDB.open(DB_NAME, newVersion)
+
+      upgradeRequest.onerror = () => reject(upgradeRequest.error)
+
+      upgradeRequest.onupgradeneeded = (event) => {
+        const dbToUpgrade = (event.target as IDBOpenDBRequest).result
+        for (const storeName of REQUIRED_STORES) {
+          createStoreIfNeeded(dbToUpgrade, storeName)
+        }
+      }
+
+      upgradeRequest.onsuccess = () => {
+        db = upgradeRequest.result
+        resolve(db)
+      }
     }
 
     request.onupgradeneeded = (event) => {
       const database = (event.target as IDBOpenDBRequest).result
-
-      if (!database.objectStoreNames.contains(STORES.WALLPAPERS)) {
-        const store = database.createObjectStore(STORES.WALLPAPERS, { keyPath: 'folderName' })
-        store.createIndex('lastModified', 'lastModified', { unique: false })
-        store.createIndex('category', 'category', { unique: false })
-      }
-
-      if (!database.objectStoreNames.contains(STORES.HANDLES)) {
-        database.createObjectStore(STORES.HANDLES, { keyPath: 'key' })
-      }
-
-      if (!database.objectStoreNames.contains(STORES.METADATA)) {
-        const store = database.createObjectStore(STORES.METADATA, { keyPath: 'workshopId' })
-        store.createIndex('subscriptionDate', 'subscriptionDate', { unique: false })
-      }
-
-      if (!database.objectStoreNames.contains(STORES.SETTINGS)) {
-        database.createObjectStore(STORES.SETTINGS, { keyPath: 'key' })
+      for (const storeName of REQUIRED_STORES) {
+        createStoreIfNeeded(database, storeName)
       }
     }
   })
