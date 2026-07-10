@@ -137,10 +137,18 @@ async function saveFilterState() {
 async function loadFilterState() {
   const saved = await getSetting<FilterState>('filterState')
   if (saved) {
-    state.selectedCategories = saved.selectedCategories || ['全部']
-    state.selectedTags = saved.selectedTags || []
-    state.selectedTypes = saved.selectedTypes || ['all']
-    state.selectedContentRatings = saved.selectedContentRatings || ['大众级', '家长指导级', '限制级']
+    state.selectedCategories = saved.selectedCategories?.length ? saved.selectedCategories : ['全部']
+    const validTagNames = new Set(state.tags.map(t => t.name))
+    state.selectedTags = saved.selectedTags?.filter(t => validTagNames.has(t)) || []
+    if (state.selectedTags.length === 0) {
+      state.selectedTags = state.tags.map(t => t.name)
+    }
+    state.selectedTypes = saved.selectedTypes?.length ? saved.selectedTypes : ['all']
+    const validRatings = new Set(state.contentRatings.map(r => r.name))
+    state.selectedContentRatings = saved.selectedContentRatings?.filter(r => validRatings.has(r)) || []
+    if (state.selectedContentRatings.length === 0) {
+      state.selectedContentRatings = ['大众级', '家长指导级', '限制级']
+    }
     state.searchQuery = saved.searchQuery || ''
     state.sortBy = saved.sortBy || 'date'
     state.sortAsc = saved.sortAsc ?? false
@@ -877,12 +885,7 @@ async function scanDirectoryFromHandle(dirHandle: FileSystemDirectoryHandle): Pr
     state.categories = buildCategories(state.wallpapers)
     state.tags = buildTags(state.wallpapers)
     state.contentRatings = buildContentRatings(state.wallpapers)
-    state.selectedCategories = ['全部']
-    state.selectedTags = state.tags.map(t => t.name)
-    state.selectedTypes = ['all']
-    state.searchQuery = ''
-    state.sortBy = 'date'
-    state.sortAsc = false
+    await loadFilterState()
     state.currentPage = 1
   } catch (err: any) {
     if (err.name !== 'AbortError') {
@@ -980,10 +983,6 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
     state.contentRatings = buildContentRatings(state.wallpapers)
 
     await loadFilterState()
-
-    if (state.selectedTags.length === 0) {
-      state.selectedTags = state.tags.map(t => t.name)
-    }
 
     state.currentPage = 1
     state.loading = false
