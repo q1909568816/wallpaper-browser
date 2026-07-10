@@ -11,6 +11,28 @@ const STORES = {
 
 const REQUIRED_STORES = Object.values(STORES)
 
+const STORE_CONFIG: Record<string, { keyPath: string; indexes?: { name: string; keyPath: string; unique?: boolean }[] }> = {
+  [STORES.WALLPAPERS]: {
+    keyPath: 'folderName',
+    indexes: [
+      { name: 'lastModified', keyPath: 'lastModified', unique: false },
+      { name: 'category', keyPath: 'category', unique: false }
+    ]
+  },
+  [STORES.METADATA]: {
+    keyPath: 'workshopId',
+    indexes: [
+      { name: 'subscriptionDate', keyPath: 'subscriptionDate', unique: false }
+    ]
+  },
+  [STORES.HANDLES]: {
+    keyPath: 'key'
+  },
+  [STORES.SETTINGS]: {
+    keyPath: 'key'
+  }
+}
+
 interface CachedWallpaper {
   folderName: string
   name: string
@@ -69,23 +91,51 @@ let db: IDBDatabase | null = null
 
 function createStoreIfNeeded(database: IDBDatabase, name: string) {
   if (!database.objectStoreNames.contains(name)) {
-    if (name === STORES.WALLPAPERS) {
-      const store = database.createObjectStore(name, { keyPath: 'folderName' })
-      store.createIndex('lastModified', 'lastModified', { unique: false })
-      store.createIndex('category', 'category', { unique: false })
-    } else if (name === STORES.METADATA) {
-      const store = database.createObjectStore(name, { keyPath: 'workshopId' })
-      store.createIndex('subscriptionDate', 'subscriptionDate', { unique: false })
-    } else if (name === STORES.HANDLES) {
-      database.createObjectStore(name, { keyPath: 'key' })
-    } else if (name === STORES.SETTINGS) {
-      database.createObjectStore(name, { keyPath: 'key' })
+    const config = STORE_CONFIG[name]
+    if (config) {
+      const store = database.createObjectStore(name, { keyPath: config.keyPath })
+      if (config.indexes) {
+        for (const idx of config.indexes) {
+          store.createIndex(idx.name, idx.keyPath, { unique: idx.unique ?? false })
+        }
+      }
     }
   }
 }
 
+function ensureIndexesForStore(database: IDBDatabase, name: string): boolean {
+  if (!database.objectStoreNames.contains(name)) return false
+
+  const config = STORE_CONFIG[name]
+  if (!config || !config.indexes) return false
+
+  const store = database.transaction(name, 'readonly').objectStore(name)
+  let addedIndex = false
+
+  for (const idx of config.indexes) {
+    if (!store.indexNames.contains(idx.name)) {
+      addedIndex = true
+      break
+    }
+  }
+
+  return addedIndex
+}
+
 function hasAllStores(database: IDBDatabase): boolean {
   return REQUIRED_STORES.every(s => database.objectStoreNames.contains(s))
+}
+
+function needsUpgrade(database: IDBDatabase): boolean {
+  if (!hasAllStores(database)) return true
+
+  for (const storeName of REQUIRED_STORES) {
+    if (ensureIndexesForStore(database, storeName)) {
+      return true
+    }
+  }
+
+  return false
 }
 
 async function openDB(): Promise<IDBDatabase> {
@@ -99,7 +149,7 @@ async function openDB(): Promise<IDBDatabase> {
     request.onsuccess = () => {
       const database = request.result
 
-      if (hasAllStores(database)) {
+      if (!needsUpgrade(database)) {
         db = database
         resolve(db)
         return
@@ -114,8 +164,18 @@ async function openDB(): Promise<IDBDatabase> {
 
       upgradeRequest.onupgradeneeded = (event) => {
         const dbToUpgrade = (event.target as IDBOpenDBRequest).result
+        const tx = (event.target as IDBOpenDBRequest).transaction
         for (const storeName of REQUIRED_STORES) {
           createStoreIfNeeded(dbToUpgrade, storeName)
+          const config = STORE_CONFIG[storeName]
+          if (config && config.indexes && dbToUpgrade.objectStoreNames.contains(storeName)) {
+            const store = tx!.objectStore(storeName)
+            for (const idx of config.indexes) {
+              if (!store.indexNames.contains(idx.name)) {
+                store.createIndex(idx.name, idx.keyPath, { unique: idx.unique ?? false })
+              }
+            }
+          }
         }
       }
 
@@ -127,8 +187,18 @@ async function openDB(): Promise<IDBDatabase> {
 
     request.onupgradeneeded = (event) => {
       const database = (event.target as IDBOpenDBRequest).result
+      const tx = (event.target as IDBOpenDBRequest).transaction
       for (const storeName of REQUIRED_STORES) {
         createStoreIfNeeded(database, storeName)
+        const config = STORE_CONFIG[storeName]
+        if (config && config.indexes && database.objectStoreNames.contains(storeName)) {
+          const store = tx!.objectStore(storeName)
+          for (const idx of config.indexes) {
+            if (!store.indexNames.contains(idx.name)) {
+              store.createIndex(idx.name, idx.keyPath, { unique: idx.unique ?? false })
+            }
+          }
+        }
       }
     }
   })
