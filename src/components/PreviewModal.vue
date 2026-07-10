@@ -223,7 +223,7 @@ function handleWheel(e: WheelEvent) {
 }
 
 async function toggleFullscreen() {
-  const container = document.querySelector('.preview-modal')
+  const container = document.querySelector('.preview-content')
   if (!container) return
   
   if (!document.fullscreenElement) {
