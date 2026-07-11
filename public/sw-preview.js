@@ -59,35 +59,39 @@ self.addEventListener('message', (event) => {
 })
 
 async function requestFileFromClient(path) {
-  if (!previewClient) {
-    const clients = await self.clients.matchAll({ type: 'window' })
-    for (const client of clients) {
-      if (client.url.indexOf(self.location.pathname) !== -1) {
-        previewClient = client
-        break
+  try {
+    if (!previewClient) {
+      const clients = await self.clients.matchAll({ type: 'window' })
+      for (const client of clients) {
+        if (client.url.indexOf(self.location.pathname) !== -1) {
+          previewClient = client
+          break
+        }
       }
     }
-  }
-  
-  if (!previewClient) return null
+    
+    if (!previewClient) return null
 
-  return new Promise((resolve) => {
-    const channel = new MessageChannel()
-    channel.port1.onmessage = (e) => {
-      if (e.data?.type === 'file-data') {
-        resolve(e.data.blob || null)
-      } else {
+    return new Promise((resolve) => {
+      const channel = new MessageChannel()
+      channel.port1.onmessage = (e) => {
+        if (e.data?.type === 'file-data') {
+          resolve(e.data.blob || null)
+        } else {
+          resolve(null)
+        }
+      }
+      setTimeout(() => resolve(null), 5000)
+      
+      try {
+        previewClient.postMessage({ type: 'request-file', path }, [channel.port2])
+      } catch {
         resolve(null)
       }
-    }
-    setTimeout(() => resolve(null), 5000)
-    
-    try {
-      previewClient.postMessage({ type: 'request-file', path }, [channel.port2])
-    } catch {
-      resolve(null)
-    }
-  })
+    })
+  } catch {
+    return null
+  }
 }
 
 self.addEventListener('fetch', (event) => {
@@ -100,28 +104,35 @@ self.addEventListener('fetch', (event) => {
     const normalizedPath = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath
 
     event.respondWith((async () => {
-      if (fileMap.size === 0 && fileMapReady) {
-        await Promise.race([
-          fileMapReady,
-          new Promise((r) => setTimeout(r, 5000))
-        ])
-      }
+      try {
+        if (fileMap.size === 0 && fileMapReady) {
+          await Promise.race([
+            fileMapReady,
+            new Promise((r) => setTimeout(r, 5000))
+          ])
+        }
 
-      const found = findInFileMap(normalizedPath)
-      if (found) {
-        return makeBlobResponse(found.blob, found.name)
-      }
+        const found = findInFileMap(normalizedPath)
+        if (found) {
+          return makeBlobResponse(found.blob, found.name)
+        }
 
-      const fetchedBlob = await requestFileFromClient(normalizedPath)
-      if (fetchedBlob) {
-        fileMap.set(normalizedPath, fetchedBlob)
-        return makeBlobResponse(fetchedBlob, normalizedPath)
-      }
+        const fetchedBlob = await requestFileFromClient(normalizedPath)
+        if (fetchedBlob) {
+          fileMap.set(normalizedPath, fetchedBlob)
+          return makeBlobResponse(fetchedBlob, normalizedPath)
+        }
 
-      return new Response('Not found: ' + normalizedPath, {
-        status: 404,
-        headers: { 'Content-Type': 'text/plain' }
-      })
+        return new Response('Not found: ' + normalizedPath, {
+          status: 404,
+          headers: { 'Content-Type': 'text/plain' }
+        })
+      } catch (e) {
+        return new Response('Error: ' + e.message, {
+          status: 500,
+          headers: { 'Content-Type': 'text/plain' }
+        })
+      }
     })())
     return
   }
@@ -150,19 +161,26 @@ self.addEventListener('fetch', (event) => {
     }
 
     event.respondWith((async () => {
-      const found = findInFileMap(relPath)
-      if (found) return makeBlobResponse(found.blob, found.name)
+      try {
+        const found = findInFileMap(relPath)
+        if (found) return makeBlobResponse(found.blob, found.name)
 
-      const fetchedBlob = await requestFileFromClient(relPath)
-      if (fetchedBlob) {
-        fileMap.set(relPath, fetchedBlob)
-        return makeBlobResponse(fetchedBlob, relPath)
+        const fetchedBlob = await requestFileFromClient(relPath)
+        if (fetchedBlob) {
+          fileMap.set(relPath, fetchedBlob)
+          return makeBlobResponse(fetchedBlob, relPath)
+        }
+
+        return new Response('Not found: ' + relPath, {
+          status: 404,
+          headers: { 'Content-Type': 'text/plain' }
+        })
+      } catch (e) {
+        return new Response('Error: ' + e.message, {
+          status: 500,
+          headers: { 'Content-Type': 'text/plain' }
+        })
       }
-
-      return new Response('Not found: ' + relPath, {
-        status: 404,
-        headers: { 'Content-Type': 'text/plain' }
-      })
     })())
   }
 })
