@@ -42,12 +42,12 @@
           </div>
         </div>
         <div class="preview-content">
-          <div v-if="previewUrl || previewSrcdoc || textUrl" class="preview-media">
+          <div v-if="previewUrl || previewSrc || textUrl" class="preview-media">
             <div v-if="isImage" class="image-container" @wheel.prevent="handleWheel">
               <img :src="previewUrl" class="preview-image" :style="imageStyle" alt="预览"/>
             </div>
             <iframe v-else-if="isText" :src="textUrl" class="preview-iframe" sandbox="allow-same-origin"/>
-            <iframe v-else-if="isWeb" :srcdoc="previewSrcdoc" class="preview-iframe" sandbox="allow-scripts allow-same-origin"/>
+            <iframe v-else-if="isWeb" :src="previewSrc" class="preview-iframe" sandbox="allow-scripts allow-same-origin"/>
             <video v-else-if="isVideo" ref="videoRef" :src="previewUrl" class="preview-video" controls autoplay loop/>
             <div v-else class="preview-unsupported">
               <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2">
@@ -104,7 +104,7 @@ const TEXT_MIME: Record<string, string> = {
 }
 
 const generatedUrl = ref('')
-const previewSrcdoc = ref('')
+const previewSrc = ref('')
 const textUrl = ref('')
 const scale = ref(1)
 const isFullscreen = ref(false)
@@ -289,10 +289,10 @@ async function generateWebPreview() {
 
   if (fileMap.size === 0) return
 
-  const result = await buildWebPreview(fileMap, htmlFileName)
+  const result = await buildWebPreview(fileMap, htmlFileName, folderHandle)
   if (result) {
     webPreviewCleanup = result.cleanup
-    previewSrcdoc.value = result.srcdoc
+    previewSrc.value = result.src
   }
 }
 
@@ -328,8 +328,11 @@ async function generateTextPreview() {
 
 watch(() => [props.visible, props.file, props.wallpaper], () => {
   scale.value = 1
-  cleanup()
-  if (!props.visible) return
+  if (!props.visible) {
+    cleanup()
+    return
+  }
+  cleanupBlobs()
   if (isText.value) {
     generateTextPreview()
   } else if (isWeb.value) {
@@ -339,7 +342,7 @@ watch(() => [props.visible, props.file, props.wallpaper], () => {
   }
 }, { immediate: true })
 
-function cleanup() {
+function cleanupBlobs() {
   if (generatedUrl.value.startsWith('blob:')) {
     URL.revokeObjectURL(generatedUrl.value)
     generatedUrl.value = ''
@@ -348,11 +351,15 @@ function cleanup() {
     URL.revokeObjectURL(textUrl.value)
     textUrl.value = ''
   }
+}
+
+function cleanup() {
+  cleanupBlobs()
   if (webPreviewCleanup) {
     webPreviewCleanup()
     webPreviewCleanup = null
   }
-  previewSrcdoc.value = ''
+  previewSrc.value = ''
 }
 
 watch(() => props.visible, (val) => {

@@ -18,70 +18,108 @@ const RESOURCE_ATTRS = [
 ]
 
 let swRegistration: ServiceWorkerRegistration | null = null
-let swReadyResolve: (() => void) | null = null
-let swReadyPromise: Promise<void> | null = null
+let previewFolderHandle: FileSystemDirectoryHandle | null = null
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', async (event) => {
+    if (event.data?.type === 'request-file') {
+      const path = event.data.path
+      if (!path || !previewFolderHandle) {
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage({ type: 'file-data', blob: null })
+        }
+        return
+      }
+
+      try {
+        const parts = path.split('/')
+        let current = previewFolderHandle
+        for (let i = 0; i < parts.length - 1; i++) {
+          current = await current.getDirectoryHandle(parts[i])
+        }
+        const fileHandle = await current.getFileHandle(parts[parts.length - 1])
+        const file = await fileHandle.getFile()
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage({ type: 'file-data', blob: file })
+        }
+      } catch {
+        if (event.ports && event.ports[0]) {
+          event.ports[0].postMessage({ type: 'file-data', blob: null })
+        }
+      }
+    }
+  })
+}
 
 async function ensureServiceWorker(): Promise<void> {
   if (!('serviceWorker' in navigator)) return
 
-  if (navigator.serviceWorker.controller && swRegistration?.active) return
-
-  if (swReadyPromise) return swReadyPromise
-
-  swReadyPromise = new Promise((resolve) => {
-    swReadyResolve = resolve
-  })
-
   try {
-    swRegistration = await navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw-preview.js', { scope: import.meta.env.BASE_URL || '/' })
-    await navigator.serviceWorker.ready
+    if (!swRegistration) {
+      swRegistration = await navigator.serviceWorker.register(
+        import.meta.env.BASE_URL + 'sw-preview.js',
+        { scope: import.meta.env.BASE_URL || '/' }
+      )
+    }
 
-    if (navigator.serviceWorker.controller) {
-      swReadyResolve?.()
-    } else {
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        swReadyResolve?.()
-      })
+    if (!navigator.serviceWorker.controller) {
+      await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise<void>((resolve) => setTimeout(resolve, 5000))
+      ])
+    }
+
+    if (!swRegistration) {
+      swRegistration = await navigator.serviceWorker.getRegistration(import.meta.env.BASE_URL || '/') || null
     }
   } catch {
-    swReadyResolve?.()
+    swRegistration = null
   }
-
-  return swReadyPromise
 }
 
 function sendFilesToSW(files: [string, Blob][]): Promise<void> {
-  return new Promise((resolve) => {
-    const controller = navigator.serviceWorker?.controller
-    const active = swRegistration?.active
-    const target = controller || active
+  return new Promise(async (resolve) => {
+    let target = navigator.serviceWorker.controller
+    if (!target && swRegistration?.active) {
+      target = swRegistration.active
+    }
+    if (!target) {
+      try {
+        await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<void>((r) => setTimeout(r, 5000))
+        ])
+      } catch {}
+      target = navigator.serviceWorker.controller || swRegistration?.active || null
+    }
     if (!target) {
       resolve()
       return
     }
     const channel = new MessageChannel()
     let settled = false
-    const done = () => {
-      if (settled) return
-      settled = true
-      resolve()
-    }
     channel.port1.onmessage = (e) => {
-      if (e.data?.type === 'init-done') done()
+      if (e.data?.type === 'init-done' && !settled) {
+        settled = true
+        resolve()
+      }
     }
     try {
       target.postMessage({ type: 'init', files }, [channel.port2])
     } catch {
-      done()
-      return
+      resolve()
     }
-    setTimeout(done, 3000)
+    setTimeout(() => {
+      if (!settled) {
+        settled = true
+        resolve()
+      }
+    }, 5000)
   })
 }
 
 function clearSWCache(): void {
-  if (!swRegistration?.active) return
-  swRegistration.active.postMessage({ type: 'clear' })
+  previewFolderHandle = null
 }
 
 export async function readAllFilesRecursive(dirHandle: FileSystemDirectoryHandle, prefix = ''): Promise<Map<string, Blob>> {
@@ -232,7 +270,6 @@ function patchHtmlResources(html: string, fileMap: Map<string, Blob>): string {
     }
   }
 
-  // inject <base> so ALL relative URLs (including JS dynamic ones) resolve to SW prefix
   let base = doc.querySelector('base')
   if (base) {
     base.setAttribute('href', PREVIEW_PREFIX)
@@ -244,18 +281,101 @@ function patchHtmlResources(html: string, fileMap: Map<string, Blob>): string {
     }
   }
 
+  const interceptScript = doc.createElement('script')
+  interceptScript.textContent = `
+    (function() {
+      var P = ${JSON.stringify(PREVIEW_PREFIX)};
+      function rewrite(url) {
+        if (typeof url !== 'string' || !url) return url;
+        if (url.startsWith('data:') || url.startsWith('blob:') || url.startsWith('//')) return url;
+        if (url.indexOf('__wp__/') !== -1) return url;
+        if (url.startsWith('http:') || url.startsWith('https:')) {
+          var u;
+          try { u = new URL(url); } catch(e) { return url; }
+          if (u.origin !== window.location.origin) return url;
+          var p = u.pathname;
+          if (p.indexOf('__wp__/') !== -1) return url;
+          var base = ${JSON.stringify(import.meta.env.BASE_URL || '/')};
+          if (p.startsWith(base)) p = p.slice(base.length);
+          if (p.startsWith('/')) p = p.slice(1);
+          return P + p + u.search + u.hash;
+        }
+        var qIdx = url.indexOf('?');
+        var hIdx = url.indexOf('#');
+        var path = url;
+        var suffix = '';
+        if (qIdx !== -1 || hIdx !== -1) {
+          var cut = (qIdx !== -1) ? qIdx : hIdx;
+          path = url.substring(0, cut);
+          suffix = url.substring(cut);
+        }
+        while (path.startsWith('./')) path = path.slice(2);
+        while (path.startsWith('../')) path = path.slice(3);
+        if (path.startsWith('/')) path = path.slice(1);
+        return P + path + suffix;
+      }
+      var origFetch = window.fetch;
+      var wrappedFetch = function(input, init) {
+        if (typeof input === 'string') input = rewrite(input);
+        else if (input && input.url) input = new Request(rewrite(input.url), input);
+        return origFetch.call(this, input, init);
+      };
+      Object.defineProperty(window, 'fetch', {
+        value: wrappedFetch,
+        writable: true,
+        configurable: true
+      });
+      var origOpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function(method, url) {
+        arguments[1] = rewrite(url);
+        return origOpen.apply(this, arguments);
+      };
+      var origCreateElement = document.createElement;
+      document.createElement = function(tag) {
+        var el = origCreateElement.apply(this, arguments);
+        if (typeof tag === 'string' && (tag.toLowerCase() === 'script' || tag.toLowerCase() === 'img' || tag.toLowerCase() === 'link')) {
+          var origSetAttribute = el.setAttribute.bind(el);
+          el.setAttribute = function(name, value) {
+            if ((name === 'src' || name === 'href') && typeof value === 'string') {
+              value = rewrite(value);
+            }
+            return origSetAttribute(name, value);
+          };
+        }
+        return el;
+      };
+    })();
+  `
+  if (doc.head) {
+    doc.head.insertBefore(interceptScript, doc.head.firstChild)
+  }
+
   return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML
 }
 
 export interface WebPreviewResult {
-  srcdoc: string
+  src: string
   cleanup: () => void
+}
+
+function patchJsContent(jsContent: string, fileMap: Map<string, Blob>): string {
+  return jsContent.replace(/(["'])((?:[^"'\\\n]|\\.)+?\.(?:json|png|jpg|jpeg|gif|svg|webp|mp4|webm|ogg|mp3|wav|woff|woff2|ttf|otf|glb|gltf|wasm|atlas|skel))\1/gi, (match, quote, path) => {
+    const newPath = normalizeResourcePath(path, '', fileMap)
+    if (newPath) {
+      return quote + newPath + quote
+    }
+    return match
+  })
 }
 
 export async function buildWebPreview(
   fileMap: Map<string, Blob>,
-  htmlFileName: string
+  htmlFileName: string,
+  folderHandle?: FileSystemDirectoryHandle | null
 ): Promise<WebPreviewResult | null> {
+  if (folderHandle) {
+    previewFolderHandle = folderHandle
+  }
   try {
     let htmlBlob = fileMap.get(htmlFileName)
     if (!htmlBlob) {
@@ -267,34 +387,54 @@ export async function buildWebPreview(
       }
     }
 
-    if (!htmlBlob) return null
+    if (!htmlBlob) {
+      console.warn('[webPreview] HTML blob not found:', htmlFileName)
+      return null
+    }
 
     const htmlText = await htmlBlob.text()
     const patchedHtml = patchHtmlResources(htmlText, fileMap)
 
     const fileEntries: [string, Blob][] = []
     for (const [name, blob] of fileMap) {
-      if (name.toLowerCase() !== htmlFileName.toLowerCase()) {
-        fileEntries.push([name, blob])
+      if (name.toLowerCase() === htmlFileName.toLowerCase()) {
+        continue
       }
+
+      const lowerName = name.toLowerCase()
+      if (lowerName.endsWith('.js') || lowerName.endsWith('.mjs')) {
+        try {
+          const text = await blob.text()
+          const patched = patchJsContent(text, fileMap)
+          if (patched !== text) {
+            fileEntries.push([name, new Blob([patched], { type: 'application/javascript' })])
+            continue
+          }
+        } catch {
+        }
+      }
+      fileEntries.push([name, blob])
     }
+
+    const patchedBlob = new Blob([patchedHtml], { type: 'text/html' })
+    fileEntries.push([htmlFileName, patchedBlob])
 
     await ensureServiceWorker()
     await sendFilesToSW(fileEntries)
 
+    const previewSrc = PREVIEW_PREFIX + encodeURIComponent(htmlFileName)
     return {
-      srcdoc: patchedHtml,
+      src: previewSrc,
       cleanup: () => {
         clearSWCache()
       }
     }
-  } catch {
+  } catch (err) {
+    console.error('[webPreview] buildWebPreview failed:', err)
     return null
   }
 }
 
 export function cleanupWebPreview(): void {
   clearSWCache()
-  swReadyPromise = null
-  swReadyResolve = null
 }

@@ -1,8 +1,18 @@
 const PREVIEW_MARKER = '__wp__/'
 let fileMap = new Map()
-let activeTabId = null
+let fileMapReady = null
+let fileMapReadyResolve = null
+let previewClient = null
 
-self.addEventListener('install', () => {
+function resetFileMapReady() {
+  fileMapReady = new Promise((resolve) => {
+    fileMapReadyResolve = resolve
+  })
+}
+
+resetFileMapReady()
+
+self.addEventListener('install', (event) => {
   self.skipWaiting()
 })
 
@@ -11,60 +21,184 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('message', (event) => {
-  const { type, files, tabId } = event.data
+  const { type, files } = event.data
+
+  if (type === 'SKIP_WAITING') {
+    self.skipWaiting()
+    return
+  }
 
   if (type === 'init') {
     fileMap = new Map(files)
-    activeTabId = tabId
+    if (fileMapReadyResolve) {
+      fileMapReadyResolve()
+      fileMapReadyResolve = null
+    }
+    if (event.source) {
+      previewClient = event.source
+    }
     if (event.ports && event.ports[0]) {
       event.ports[0].postMessage({ type: 'init-done', count: fileMap.size })
     }
   } else if (type === 'clear') {
     fileMap.clear()
-    activeTabId = null
+    resetFileMapReady()
+  } else if (type === 'list-files') {
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({ type: 'files-list', keys: [...fileMap.keys()] })
+    }
+  } else if (type === 'file-response') {
+    const { path, blob } = event.data
+    if (path && blob) {
+      fileMap.set(path, blob)
+    }
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({ type: 'file-response-ack' })
+    }
   }
 })
+
+async function requestFileFromClient(path) {
+  if (!previewClient) {
+    const clients = await self.clients.matchAll({ type: 'window' })
+    for (const client of clients) {
+      if (client.url.indexOf(self.location.pathname) !== -1) {
+        previewClient = client
+        break
+      }
+    }
+  }
+  
+  if (!previewClient) return null
+
+  return new Promise((resolve) => {
+    const channel = new MessageChannel()
+    channel.port1.onmessage = (e) => {
+      if (e.data?.type === 'file-data') {
+        resolve(e.data.blob || null)
+      } else {
+        resolve(null)
+      }
+    }
+    setTimeout(() => resolve(null), 5000)
+    
+    try {
+      previewClient.postMessage({ type: 'request-file', path }, [channel.port2])
+    } catch {
+      resolve(null)
+    }
+  })
+}
 
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
   const idx = url.pathname.indexOf(PREVIEW_MARKER)
 
-  if (idx === -1) return
+  // Primary path: requests with __wp__/ marker
+  if (idx !== -1) {
+    const rawPath = decodeURIComponent(url.pathname.slice(idx + PREVIEW_MARKER.length))
+    const normalizedPath = rawPath.startsWith('/') ? rawPath.slice(1) : rawPath
 
-  const rawPath = decodeURIComponent(url.pathname.slice(idx + PREVIEW_MARKER.length))
+    event.respondWith((async () => {
+      if (fileMap.size === 0 && fileMapReady) {
+        await Promise.race([
+          fileMapReady,
+          new Promise((r) => setTimeout(r, 5000))
+        ])
+      }
 
-  // try full relative path first (e.g., images/img1.svg)
-  if (rawPath && fileMap.has(rawPath)) {
-    return respondWithBlob(event, fileMap.get(rawPath), rawPath)
+      const found = findInFileMap(normalizedPath)
+      if (found) {
+        return makeBlobResponse(found.blob, found.name)
+      }
+
+      const fetchedBlob = await requestFileFromClient(normalizedPath)
+      if (fetchedBlob) {
+        fileMap.set(normalizedPath, fetchedBlob)
+        return makeBlobResponse(fetchedBlob, normalizedPath)
+      }
+
+      return new Response('Not found: ' + normalizedPath, {
+        status: 404,
+        headers: { 'Content-Type': 'text/plain' }
+      })
+    })())
+    return
   }
 
-  const lowerPath = rawPath.toLowerCase()
-  for (const [key, value] of fileMap) {
-    if (key.toLowerCase() === lowerPath) {
-      return respondWithBlob(event, value, key)
+  // Fallback: intercept same-origin GET requests from preview iframe
+  // (only when referer clearly indicates preview origin)
+  if (event.request.method === 'GET' && fileMap.size > 0 && url.origin === self.location.origin) {
+    const referer = event.request.referrer || ''
+    if (referer.indexOf(PREVIEW_MARKER) === -1) {
+      return
     }
+
+    const pathname = url.pathname
+    if (pathname.startsWith('/@') || pathname.startsWith('/node_modules/') ||
+        pathname.endsWith('.hot-update.js') || pathname.endsWith('.hot-update.json') ||
+        pathname.startsWith(self.location.pathname + '@vite/')) {
+      return
+    }
+
+    const basePath = self.location.pathname.replace(/\/$/, '')
+    let relPath = pathname
+    if (relPath.startsWith(basePath + '/')) {
+      relPath = relPath.slice(basePath.length + 1)
+    } else if (relPath.startsWith('/')) {
+      relPath = relPath.slice(1)
+    }
+
+    event.respondWith((async () => {
+      const found = findInFileMap(relPath)
+      if (found) return makeBlobResponse(found.blob, found.name)
+      return new Response('Not found: ' + relPath, {
+        status: 404,
+        headers: { 'Content-Type': 'text/plain' }
+      })
+    })())
+  }
+})
+
+function findInFileMap(path) {
+  if (!path) return null
+  const normalized = path.startsWith('/') ? path.slice(1) : path
+
+  if (fileMap.has(normalized)) return { blob: fileMap.get(normalized), name: normalized }
+
+  const lower = normalized.toLowerCase()
+  for (const [key, value] of fileMap) {
+    if (key.toLowerCase() === lower) return { blob: value, name: key }
   }
 
-  // fallback: match by filename only
-  const basename = rawPath.split('/').pop() || ''
-  if (basename && fileMap.has(basename)) {
-    return respondWithBlob(event, fileMap.get(basename), basename)
-  }
+  const basename = normalized.split('/').pop() || ''
+  if (basename && fileMap.has(basename)) return { blob: fileMap.get(basename), name: basename }
 
   const lowerBasename = basename.toLowerCase()
   for (const [key, value] of fileMap) {
     const keyBasename = key.split('/').pop() || ''
-    if (keyBasename.toLowerCase() === lowerBasename) {
-      return respondWithBlob(event, value, key)
+    if (keyBasename.toLowerCase() === lowerBasename) return { blob: value, name: key }
+  }
+
+  for (const [key, value] of fileMap) {
+    const keyLower = key.toLowerCase()
+    if (keyLower.endsWith('/' + lower) || keyLower.endsWith('/' + lowerBasename)) {
+      return { blob: value, name: key }
     }
   }
 
-  event.respondWith(new Response('Not Found', { status: 404 }))
-})
+  const parts = normalized.split('/')
+  for (let i = 1; i < parts.length; i++) {
+    const partial = parts.slice(i).join('/')
+    if (fileMap.has(partial)) return { blob: fileMap.get(partial), name: partial }
+  }
 
-function respondWithBlob(event, blob, filename) {
+  return null
+}
+
+function makeBlobResponse(blob, filename) {
   const mimeType = blob.type || getMimeType(filename)
-  const response = new Response(blob, {
+  return new Response(blob, {
     status: 200,
     headers: {
       'Content-Type': mimeType,
@@ -72,7 +206,6 @@ function respondWithBlob(event, blob, filename) {
       'Access-Control-Allow-Origin': '*'
     }
   })
-  event.respondWith(response)
 }
 
 function getMimeType(filename) {
@@ -104,6 +237,8 @@ function getMimeType(filename) {
     'xml': 'application/xml',
     'txt': 'text/plain',
     'csv': 'text/csv',
+    'atlas': 'text/plain',
+    'skel': 'application/octet-stream',
     'gltf': 'model/gltf+json',
     'glb': 'model/gltf-binary',
     'wasm': 'application/wasm',
