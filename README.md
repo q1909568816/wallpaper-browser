@@ -59,7 +59,7 @@ npm run preview
 ## 使用说明
 
 1. 打开应用后，点击「选择壁纸资源目录」按钮
-2. 选择 Wallpaper Engine 创意工坊目录（通常是 `steamapps/workshop/content/431960`）
+2. 选择 Wallpaper Engine 创意工坊目录（通常是 `steamapps`）
 3. 应用会自动扫描目录并显示所有壁纸，首次扫描后缓存到 IndexedDB
 4. 下次打开时从缓存秒级恢复，自动增量同步变化
 5. 使用侧边栏「类型」和「分类」栏目多选过滤壁纸
