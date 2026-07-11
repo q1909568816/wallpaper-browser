@@ -24,10 +24,7 @@ let swReadyPromise: Promise<void> | null = null
 async function ensureServiceWorker(): Promise<void> {
   if (!('serviceWorker' in navigator)) return
 
-  if (swRegistration) {
-    const sw = swRegistration.active || swRegistration.waiting || swRegistration.installing
-    if (sw?.state === 'activated') return
-  }
+  if (navigator.serviceWorker.controller && swRegistration?.active) return
 
   if (swReadyPromise) return swReadyPromise
 
@@ -37,8 +34,9 @@ async function ensureServiceWorker(): Promise<void> {
 
   try {
     swRegistration = await navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw-preview.js', { scope: import.meta.env.BASE_URL || '/' })
-    const sw = swRegistration.active || swRegistration.waiting || swRegistration.installing
-    if (sw && sw.state === 'activated') {
+    await navigator.serviceWorker.ready
+
+    if (navigator.serviceWorker.controller) {
       swReadyResolve?.()
     } else {
       navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -52,9 +50,33 @@ async function ensureServiceWorker(): Promise<void> {
   return swReadyPromise
 }
 
-function sendFilesToSW(files: [string, Blob][]): void {
-  if (!swRegistration?.active) return
-  swRegistration.active.postMessage({ type: 'init', files })
+function sendFilesToSW(files: [string, Blob][]): Promise<void> {
+  return new Promise((resolve) => {
+    const controller = navigator.serviceWorker?.controller
+    const active = swRegistration?.active
+    const target = controller || active
+    if (!target) {
+      resolve()
+      return
+    }
+    const channel = new MessageChannel()
+    let settled = false
+    const done = () => {
+      if (settled) return
+      settled = true
+      resolve()
+    }
+    channel.port1.onmessage = (e) => {
+      if (e.data?.type === 'init-done') done()
+    }
+    try {
+      target.postMessage({ type: 'init', files }, [channel.port2])
+    } catch {
+      done()
+      return
+    }
+    setTimeout(done, 3000)
+  })
 }
 
 function clearSWCache(): void {
@@ -258,7 +280,7 @@ export async function buildWebPreview(
     }
 
     await ensureServiceWorker()
-    sendFilesToSW(fileEntries)
+    await sendFilesToSW(fileEntries)
 
     return {
       srcdoc: patchedHtml,

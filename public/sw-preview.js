@@ -16,6 +16,9 @@ self.addEventListener('message', (event) => {
   if (type === 'init') {
     fileMap = new Map(files)
     activeTabId = tabId
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({ type: 'init-done', count: fileMap.size })
+    }
   } else if (type === 'clear') {
     fileMap.clear()
     activeTabId = null
