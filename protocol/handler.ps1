@@ -111,32 +111,33 @@ if ($action -eq "addplaylist") {
     if (-not $mediaFile) { log "EXIT: no media/scene file in wallpaper dir"; exit }
     $mediaPath = $mediaFile.FullName.Replace('\', '/')
     log "mediaPath=$mediaPath"
+    if ($running) {
+        log "WARN: WE is running; please fully exit Wallpaper Engine before adding, or the change will be overwritten on exit"
+    }
     try {
-        $json = Get-Content $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $playlists = $json.cc.general.playlists
-        if (-not $playlists -or $playlists.Count -eq 0) {
-            $playlist = @{ name = '默认'; items = @(); settings = @{ delay = 1; mode = 'timer'; order = 'random'; transition = 'random'; transitiontime = 1500; updateonpause = $false; videosequence = $false } }
-            $playlists = @($playlist)
-        }
-        $target = $playlists[0]
-        if ($target.items -notcontains $mediaPath) {
-            $target.items += $mediaPath
-            $json.cc.general.playlists = $playlists
-            $json | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8 -Force
-            log "added to playlist: $mediaPath"
-            if ($running) {
-                $argsStr = "-control openWallpaper -file `"$wallpaperProject`""
-                $psi = New-Object System.Diagnostics.ProcessStartInfo
-                $psi.FileName = $weExe
-                $psi.Arguments = $argsStr
-                $psi.UseShellExecute = $false
-                $psi.CreateNoWindow = $true
-                [System.Diagnostics.Process]::Start($psi) | Out-Null
-                log "triggered WE refresh"
-            }
+        $enc = New-Object System.Text.UTF8Encoding($false)
+        $raw = [System.IO.File]::ReadAllText($configPath, $enc)
+        $m = [regex]::Match($raw, '"playlist"\s*:\s*\{\s*"items"\s*:\s*(?<nl>\r?\n)(?<open>\t*)\[(?<body>[^\]]*?)(?<close>\t*)\]')
+        if (-not $m.Success) { log "EXIT: active playlist not found in selectedwallpapers"; exit }
+        $body = $m.Groups['body'].Value
+        if ($body.Contains($mediaPath)) { log "already in active playlist"; log "=== DONE addplaylist ==="; exit }
+        $nl = $m.Groups['nl'].Value
+        $itemLines = $body -split "`n" | Where-Object { $_.Trim().StartsWith('"') }
+        if ($itemLines.Count -gt 0) {
+            $itemIndent = ([regex]::Match($itemLines[-1], '^\s*')).Value.Trim("`r", "`n")
         } else {
-            log "already in playlist"
+            $itemIndent = $m.Groups['open'].Value + "`t"
         }
+        if ($body.Trim().Length -eq 0) {
+            $newBody = $nl + $itemIndent + '"' + $mediaPath + '"' + $nl
+        } else {
+            $newBody = $body.TrimEnd() + ',' + $nl + $itemIndent + '"' + $mediaPath + '"' + $nl
+        }
+        $bracketPos = $m.Value.IndexOf('[')
+        $replacement = $m.Value.Substring(0, $bracketPos + 1) + $newBody + $m.Groups['close'].Value + ']'
+        $raw = $raw.Substring(0, $m.Index) + $replacement + $raw.Substring($m.Index + $m.Length)
+        [System.IO.File]::WriteAllText($configPath, $raw, $enc)
+        log "added to active playlist: $mediaPath"
     } catch { log "config write error: $_" }
     log "=== DONE addplaylist ==="
     exit
