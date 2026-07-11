@@ -89,6 +89,10 @@ foreach ($lib in $libraryPaths) {
     foreach ($weDir in $weDirs) {
         $test64 = Join-Path $weDir.FullName 'wallpaper64.exe'
         $test32 = Join-Path $weDir.FullName 'wallpaper32.exe'
+        $running64 = Get-Process wallpaper64 -ErrorAction SilentlyContinue
+        $running32 = Get-Process wallpaper32 -ErrorAction SilentlyContinue
+        if ($running32 -and (Test-Path $test32)) { $weExe = $test32; break }
+        if ($running64 -and (Test-Path $test64)) { $weExe = $test64; break }
         if (Test-Path $test64) { $weExe = $test64; break }
         if (Test-Path $test32) { $weExe = $test32; break }
     }
@@ -99,8 +103,9 @@ log "weExe=$weExe"
 if (-not $weExe) { log "EXIT: no weExe"; exit }
 
 $processName = [System.IO.Path]::GetFileNameWithoutExtension($weExe)
-$running = Get-Process -Name $processName -ErrorAction SilentlyContinue
-log "WE running=$($running -ne $null)"
+$allWeProcesses = @('wallpaper64', 'wallpaper32', 'wallpaperservice64', 'wallpaperservice32')
+$running = Get-Process -Name $allWeProcesses -ErrorAction SilentlyContinue
+log "WE running=$($running -ne $null) processes=$(($running | ForEach-Object { $_.Name }) -join ',')"
 
 if ($action -eq "addplaylist") {
     $weDir = Split-Path -Parent $weExe
@@ -111,8 +116,16 @@ if ($action -eq "addplaylist") {
     if (-not $mediaFile) { log "EXIT: no media/scene file in wallpaper dir"; exit }
     $mediaPath = $mediaFile.FullName.Replace('\', '/')
     log "mediaPath=$mediaPath"
+    $wasRunning = $running
     if ($running) {
-        log "WARN: WE is running; please fully exit Wallpaper Engine before adding, or the change will be overwritten on exit"
+        log "WE running, gracefully closing to safely update playlist config"
+        $procs = Get-Process -Name $allWeProcesses -ErrorAction SilentlyContinue
+        foreach ($p in $procs) { $p.CloseMainWindow() | Out-Null }
+        $procs | ForEach-Object { $_.WaitForExit(8000) | Out-Null }
+        $stillAlive = $procs | Where-Object { -not $_.HasExited }
+        if ($stillAlive) { $stillAlive | Stop-Process -Force; Start-Sleep -Seconds 2 }
+        log "WE closed, config saved by WE"
+        $running = $false
     }
     try {
         $enc = New-Object System.Text.UTF8Encoding($false)
@@ -139,6 +152,12 @@ if ($action -eq "addplaylist") {
         [System.IO.File]::WriteAllText($configPath, $raw, $enc)
         log "added to active playlist: $mediaPath"
     } catch { log "config write error: $_" }
+    if ($wasRunning) {
+        Start-Process -FilePath $weExe
+        log "WE restarted ($weExe)"
+    } else {
+        log "WE was not running, not auto-starting to avoid config overwrite"
+    }
     log "=== DONE addplaylist ==="
     exit
 }

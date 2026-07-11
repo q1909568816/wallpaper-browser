@@ -11,9 +11,15 @@ echo [2/3] Cleaning marker files...
 powershell.exe -ExecutionPolicy Bypass -File "%~dp0cleanup.ps1"
 echo   Done
 
-echo [3/3] Removing scripts...
+echo [3/3] Removing scripts and logs...
 rd /s /q "%APPDATA%\WallpaperBrowser" 2>nul
-if errorlevel 1 (echo   Already removed) else (echo   Removed)
+if errorlevel 1 (echo   Scripts already removed) else (echo   Scripts removed)
+if exist "%TEMP%\wpb-handler.log" (
+    del /q "%TEMP%\wpb-handler.log" >nul 2>&1
+    echo   Log removed
+) else (
+    echo   Log not found
+)
 
 echo.
 echo   Uninstall complete

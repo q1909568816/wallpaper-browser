@@ -716,6 +716,7 @@ function onImageError(e: Event) {
   display: flex;
   flex-direction: column;
   overflow-y: auto;
+  overflow-x: hidden;
 
   &::-webkit-scrollbar {
     width: 4px;
@@ -841,8 +842,11 @@ function onImageError(e: Event) {
   line-height: 1.6;
   margin-top: 8px;
   white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   max-height: 120px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .panel-scheme-color {
