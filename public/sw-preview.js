@@ -1,4 +1,5 @@
 const PREVIEW_MARKER = '__wp__/'
+const STATIC_CACHE = 'wpb-static-v1'
 let fileMap = new Map()
 let fileMapReady = null
 let fileMapReadyResolve = null
@@ -12,12 +13,43 @@ function resetFileMapReady() {
 
 resetFileMapReady()
 
+// App shell resources to pre-cache for offline access
+const APP_SHELL = [
+  self.location.pathname,
+  self.location.pathname.replace(/\/$/, '') + '/',
+  self.location.pathname + 'manifest.json',
+  self.location.pathname + 'favicon.svg',
+  self.location.pathname + 'sw-preview.js'
+]
+
 self.addEventListener('install', (event) => {
-  self.skipWaiting()
+  event.waitUntil(
+    (async () => {
+      try {
+        const cache = await caches.open(STATIC_CACHE)
+        // Pre-cache app shell resources (ignore failures for individual items)
+        await Promise.allSettled(APP_SHELL.map((url) => cache.add(url).catch(() => {})))
+      } catch {}
+      self.skipWaiting()
+    })()
+  )
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil(
+    (async () => {
+      // Clean up old static caches
+      try {
+        const keys = await caches.keys()
+        await Promise.all(
+          keys
+            .filter((key) => key.startsWith('wpb-static-') && key !== STATIC_CACHE)
+            .map((key) => caches.delete(key))
+        )
+      } catch {}
+      await self.clients.claim()
+    })()
+  )
 })
 
 self.addEventListener('message', (event) => {
@@ -137,6 +169,35 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Navigation requests: network-first with offline fallback to cached app shell
+  if (event.request.mode === 'navigate' && url.origin === self.location.origin) {
+    event.respondWith((async () => {
+      try {
+        const networkResp = await fetch(event.request)
+        if (networkResp && networkResp.ok) {
+          try {
+            const cache = await caches.open(STATIC_CACHE)
+            cache.put(event.request, networkResp.clone())
+          } catch {}
+        }
+        return networkResp
+      } catch {
+        try {
+          const cache = await caches.open(STATIC_CACHE)
+          const cached = await cache.match(event.request, { ignoreSearch: true })
+          if (cached) return cached
+          const fallback = await cache.match(self.location.pathname)
+          if (fallback) return fallback
+        } catch {}
+        return new Response('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>离线</title></head><body><h1>当前处于离线状态</h1><p>请连接网络后重试。</p></body></html>', {
+          status: 503,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' }
+        })
+      }
+    })())
+    return
+  }
+
   // Fallback: intercept same-origin GET requests from preview iframe
   if (event.request.method === 'GET' && url.origin === self.location.origin) {
     const pathname = url.pathname
@@ -178,7 +239,8 @@ self.addEventListener('fetch', (event) => {
         if (!isPreviewRequest) {
           const referer = event.request.referrer || ''
           if (referer.indexOf(PREVIEW_MARKER) === -1) {
-            return fetch(event.request)
+            // Not a preview request: use cache-first for static assets
+            return await cacheFirst(event.request)
           }
           isPreviewRequest = true
         }
@@ -293,4 +355,28 @@ function getMimeType(filename) {
     'md': 'text/markdown'
   }
   return mimeTypes[ext] || 'application/octet-stream'
+}
+
+// Cache-first strategy for static assets (non-preview same-origin GET)
+async function cacheFirst(request) {
+  try {
+    const cache = await caches.open(STATIC_CACHE)
+    const cached = await cache.match(request)
+    if (cached) return cached
+
+    const networkResp = await fetch(request)
+    // Only cache successful basic responses (avoid caching opaque/error responses)
+    if (networkResp && networkResp.ok && networkResp.type === 'basic') {
+      try {
+        cache.put(request, networkResp.clone())
+      } catch {}
+    }
+    return networkResp
+  } catch {
+    // Offline and not in cache: return a minimal 503 response
+    return new Response('Offline', {
+      status: 503,
+      headers: { 'Content-Type': 'text/plain' }
+    })
+  }
 }

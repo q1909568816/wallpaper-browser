@@ -48,6 +48,7 @@
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import type { WallpaperItem } from '../utils/wallpaperScanner'
 import { setCoverUrl, clearCoverUrl, getCoverUrl } from '../utils/wallpaperScanner'
+import { cacheThumbnail, getCachedThumbnail } from '../utils/cache'
 
 const props = defineProps<{
   wallpaper: WallpaperItem
@@ -66,19 +67,32 @@ let observer: IntersectionObserver | null = null
 
 async function loadCover() {
   if (loadedCover.value) return
-  if (!props.wallpaper.coverFileHandle) return
   try {
+    // 1. Check in-memory cache (same session)
     const cachedUrl = getCoverUrl(props.wallpaper.folderName)
     if (cachedUrl) {
       props.wallpaper.coverUrl = cachedUrl
       loadedCover.value = true
       return
     }
+    // 2. Check IndexedDB cache (survives refresh, works offline)
+    const cachedBlob = await getCachedThumbnail(props.wallpaper.folderName)
+    if (cachedBlob) {
+      const url = URL.createObjectURL(cachedBlob)
+      setCoverUrl(props.wallpaper.folderName, url)
+      props.wallpaper.coverUrl = url
+      loadedCover.value = true
+      return
+    }
+    // 3. Load from file handle and cache Blob in IndexedDB
+    if (!props.wallpaper.coverFileHandle) return
     const file = await props.wallpaper.coverFileHandle.getFile()
     const url = URL.createObjectURL(file)
     setCoverUrl(props.wallpaper.folderName, url)
     props.wallpaper.coverUrl = url
     loadedCover.value = true
+    // Cache Blob for offline access (fire-and-forget)
+    cacheThumbnail(props.wallpaper.folderName, file)
   } catch {
   }
 }

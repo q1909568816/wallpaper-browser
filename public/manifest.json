@@ -1,0 +1,18 @@
+{
+  "name": "Wallpaper Browser",
+  "short_name": "壁纸浏览器",
+  "description": "本地壁纸浏览器 - Wallpaper Engine 创意工坊壁纸管理",
+  "start_url": "/wallpaper-browser/",
+  "scope": "/wallpaper-browser/",
+  "display": "standalone",
+  "background_color": "#1b1b2a",
+  "theme_color": "#863bff",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

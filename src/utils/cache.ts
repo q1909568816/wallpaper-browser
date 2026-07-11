@@ -6,7 +6,8 @@ const STORES = {
   WALLPAPERS: 'wallpapers',
   HANDLES: 'handles',
   METADATA: 'metadata',
-  SETTINGS: 'settings'
+  SETTINGS: 'settings',
+  THUMBNAILS: 'thumbnails'
 }
 
 const REQUIRED_STORES = Object.values(STORES)
@@ -30,6 +31,9 @@ const STORE_CONFIG: Record<string, { keyPath: string; indexes?: { name: string; 
   },
   [STORES.SETTINGS]: {
     keyPath: 'key'
+  },
+  [STORES.THUMBNAILS]: {
+    keyPath: 'folderName'
   }
 }
 
@@ -504,6 +508,50 @@ export async function setSetting(key: string, value: any): Promise<void> {
     return new Promise((resolve, reject) => {
       const tx = database.transaction([STORES.SETTINGS], 'readwrite')
       tx.objectStore(STORES.SETTINGS).put({ key, value })
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  } catch {
+  }
+}
+
+// Cache cover thumbnail Blob in IndexedDB for offline access
+export async function cacheThumbnail(folderName: string, blob: Blob): Promise<void> {
+  try {
+    const database = await openDB()
+    return new Promise((resolve, reject) => {
+      const tx = database.transaction([STORES.THUMBNAILS], 'readwrite')
+      tx.objectStore(STORES.THUMBNAILS).put({ folderName, blob, cachedAt: Date.now() })
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  } catch {
+  }
+}
+
+export async function getCachedThumbnail(folderName: string): Promise<Blob | null> {
+  try {
+    const database = await openDB()
+    return new Promise((resolve, reject) => {
+      const tx = database.transaction([STORES.THUMBNAILS], 'readonly')
+      const req = tx.objectStore(STORES.THUMBNAILS).get(folderName)
+      req.onsuccess = () => {
+        const result = req.result
+        resolve(result ? result.blob : null)
+      }
+      req.onerror = () => reject(req.error)
+    })
+  } catch {
+    return null
+  }
+}
+
+export async function clearThumbnails(): Promise<void> {
+  try {
+    const database = await openDB()
+    return new Promise((resolve, reject) => {
+      const tx = database.transaction([STORES.THUMBNAILS], 'readwrite')
+      tx.objectStore(STORES.THUMBNAILS).clear()
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
