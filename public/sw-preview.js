@@ -128,7 +128,7 @@ self.addEventListener('fetch', (event) => {
 
   // Fallback: intercept same-origin GET requests from preview iframe
   // (only when referer clearly indicates preview origin)
-  if (event.request.method === 'GET' && fileMap.size > 0 && url.origin === self.location.origin) {
+  if (event.request.method === 'GET' && url.origin === self.location.origin) {
     const referer = event.request.referrer || ''
     if (referer.indexOf(PREVIEW_MARKER) === -1) {
       return
@@ -152,6 +152,13 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       const found = findInFileMap(relPath)
       if (found) return makeBlobResponse(found.blob, found.name)
+
+      const fetchedBlob = await requestFileFromClient(relPath)
+      if (fetchedBlob) {
+        fileMap.set(relPath, fetchedBlob)
+        return makeBlobResponse(fetchedBlob, relPath)
+      }
+
       return new Response('Not found: ' + relPath, {
         status: 404,
         headers: { 'Content-Type': 'text/plain' }
