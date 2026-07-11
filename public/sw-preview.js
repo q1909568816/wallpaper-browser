@@ -138,17 +138,15 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Fallback: intercept same-origin GET requests from preview iframe
-  // (only when referer clearly indicates preview origin)
   if (event.request.method === 'GET' && url.origin === self.location.origin) {
-    const referer = event.request.referrer || ''
-    if (referer.indexOf(PREVIEW_MARKER) === -1) {
-      return
-    }
-
     const pathname = url.pathname
     if (pathname.startsWith('/@') || pathname.startsWith('/node_modules/') ||
         pathname.endsWith('.hot-update.js') || pathname.endsWith('.hot-update.json') ||
-        pathname.startsWith(self.location.pathname + '@vite/')) {
+        pathname.startsWith(self.location.pathname + '@vite/') ||
+        pathname === self.location.pathname ||
+        pathname === self.location.pathname.replace(/\/$/, '') + '/' ||
+        pathname.endsWith('/src/main.ts') ||
+        pathname.endsWith('/src/App.vue')) {
       return
     }
 
@@ -160,8 +158,31 @@ self.addEventListener('fetch', (event) => {
       relPath = relPath.slice(1)
     }
 
+    if (!relPath || relPath.startsWith('src/') || relPath.startsWith('@') || relPath.startsWith('node_modules/')) {
+      return
+    }
+
     event.respondWith((async () => {
       try {
+        let isPreviewRequest = false
+        const clientId = event.clientId
+        if (clientId) {
+          try {
+            const client = await self.clients.get(clientId)
+            if (client && client.url.indexOf(PREVIEW_MARKER) !== -1) {
+              isPreviewRequest = true
+            }
+          } catch {}
+        }
+
+        if (!isPreviewRequest) {
+          const referer = event.request.referrer || ''
+          if (referer.indexOf(PREVIEW_MARKER) === -1) {
+            return fetch(event.request)
+          }
+          isPreviewRequest = true
+        }
+
         const found = findInFileMap(relPath)
         if (found) return makeBlobResponse(found.blob, found.name)
 
