@@ -104,6 +104,17 @@
 
       </header>
 
+      <div v-if="state.rootDirName && !state.protocolAvailable" class="protocol-banner">
+        <svg class="protocol-banner-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v13M6 9l6 6 6-6M4 20h16"/>
+        </svg>
+        <div class="protocol-banner-text">
+          <strong>启用一键操作</strong>
+          <span>下载并运行协议助手后，即可直接「设为壁纸」「加入播放列表」「打开目录」</span>
+        </div>
+        <a class="protocol-banner-btn" :href="protocolZipUrl" download>下载协议助手</a>
+      </div>
+
       <div class="content-area" v-if="state.rootDirName" ref="contentAreaRef">
         <div v-if="state.loading" class="loading-overlay">
           <div class="loading-spinner"></div>
@@ -428,6 +439,7 @@ const currentPage = ref(1)
 const pageSize = ref(30)
 const jumpInput = ref<number | null>(null)
 const contentAreaRef = ref<HTMLElement | null>(null)
+const protocolZipUrl = import.meta.env.BASE_URL + 'wallpaper-browser-protocol.zip'
 
 function resetPage() {
   currentPage.value = 1

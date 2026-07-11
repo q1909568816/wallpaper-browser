@@ -86,6 +86,55 @@ body {
   flex-shrink: 0;
 }
 
+.protocol-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-secondary));
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.protocol-banner-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.protocol-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+
+  strong {
+    font-size: 13px;
+    color: var(--text-primary);
+  }
+
+  span {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+}
+
+.protocol-banner-btn {
+  flex-shrink: 0;
+  padding: 6px 16px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  border-radius: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+
+  &:hover {
+    opacity: 0.85;
+  }
+}
+
 .sidebar-toggle-btn {
   display: flex;
   align-items: center;
