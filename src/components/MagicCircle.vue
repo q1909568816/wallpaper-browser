@@ -1,5 +1,5 @@
 <template>
-  <div class="magic-circle-container" @click="handleClick">
+  <div class="magic-circle-container" @click="handleClick" title="点击查看系统使用说明">
     <canvas ref="canvasRef" class="magic-canvas"></canvas>
     <div class="magic-glow"></div>
   </div>

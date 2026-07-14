@@ -120,7 +120,7 @@ defineEmits<{
   align-items: center;
   gap: 12px;
   padding: 20px 24px;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
   background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
 }
 
@@ -167,7 +167,7 @@ defineEmits<{
   display: flex;
   gap: 14px;
   padding: 16px 0;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border);
 }
 
 .help-section:last-child {
@@ -206,13 +206,13 @@ defineEmits<{
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 12px;
-  border: 1px solid var(--border-color);
+  border: 1px solid var(--border);
   font-family: inherit;
 }
 
 .help-footer {
   padding: 16px 24px;
-  border-top: 1px solid var(--border-color);
+  border-top: 1px solid var(--border);
   display: flex;
   justify-content: flex-end;
 }
