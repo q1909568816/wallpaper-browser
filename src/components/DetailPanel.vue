@@ -534,8 +534,7 @@ async function loadFiles(dirHandle: FileSystemDirectoryHandle) {
     items.push({
       name,
       kind: handle.kind as 'file' | 'directory',
-      handle,
-      type: handle.kind === 'file' ? (handle as FileSystemFileHandle).type : undefined
+      handle
     })
   }
   
@@ -753,14 +752,63 @@ async function copyFile(fileHandle: FileSystemFileHandle, targetDir: FileSystemD
   }
 }
 
+const COPY_CONCURRENCY = 5
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++
+      results[index] = await fn(items[index])
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+interface CopyTask {
+  sourceHandle: FileSystemFileHandle
+  targetDir: FileSystemDirectoryHandle
+  name: string
+}
+
+async function collectCopyTasks(
+  source: FileSystemDirectoryHandle,
+  target: FileSystemDirectoryHandle,
+  tasks: CopyTask[]
+): Promise<void> {
+  const entries: [string, FileSystemHandle][] = []
+  for await (const [name, handle] of source.entries()) {
+    entries.push([name, handle])
+  }
+  for (const [name, handle] of entries) {
+    if (handle.kind === 'file') {
+      tasks.push({ sourceHandle: handle as FileSystemFileHandle, targetDir: target, name })
+    } else {
+      const newDirHandle = await target.getDirectoryHandle(name, { create: true })
+      await collectCopyTasks(handle as FileSystemDirectoryHandle, newDirHandle, tasks)
+    }
+  }
+}
+
 async function copyDirectoryRecursive(sourceDir: FileSystemDirectoryHandle, targetDir: FileSystemDirectoryHandle, dirName: string) {
   const newDir = await targetDir.getDirectoryHandle(dirName, { create: true })
-  for await (const [name, handle] of sourceDir.entries()) {
-    if (handle.kind === 'file') {
-      await copyFile(handle as FileSystemFileHandle, newDir, name)
-    } else if (handle.kind === 'directory') {
-      await copyDirectoryRecursive(handle as FileSystemDirectoryHandle, newDir, name)
-    }
+  const tasks: CopyTask[] = []
+  await collectCopyTasks(sourceDir, newDir, tasks)
+  await mapWithConcurrency(tasks, COPY_CONCURRENCY, async (task) => {
+    await copyFile(task.sourceHandle, task.targetDir, task.name)
+  })
+}
+
+async function tryMoveEntry(handle: FileSystemHandle, targetDir: FileSystemDirectoryHandle, name: string): Promise<boolean> {
+  const moveFn = (handle as any).move
+  if (typeof moveFn !== 'function') return false
+  try {
+    await moveFn.call(handle, targetDir, name)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -772,28 +820,20 @@ async function copySelectedFiles() {
   try {
     const targetDir = await window.showDirectoryPicker({ mode: 'readwrite' })
     const selectedItems = currentFiles.value.filter(i => selectedFiles.value.has(i.name))
-    let successCount = 0
-    let failedItem = ''
 
-    for (const item of selectedItems) {
-      try {
-        if (item.kind === 'directory') {
-          await copyDirectoryRecursive(
-            item.handle as FileSystemDirectoryHandle,
-            targetDir,
-            item.name
-          )
-        } else {
-          await copyFile(item.handle as FileSystemFileHandle, targetDir, item.name)
-        }
-        successCount++
-      } catch (err) {
-        failedItem = item.name
-        throw err
+    await mapWithConcurrency(selectedItems, COPY_CONCURRENCY, async (item) => {
+      if (item.kind === 'directory') {
+        await copyDirectoryRecursive(
+          item.handle as FileSystemDirectoryHandle,
+          targetDir,
+          item.name
+        )
+      } else {
+        await copyFile(item.handle as FileSystemFileHandle, targetDir, item.name)
       }
-    }
+    })
 
-    emit('showToast', `已复制 ${successCount} 个文件/目录`)
+    emit('showToast', `已复制 ${selectedItems.length} 个文件/目录`)
   } catch (err) {
     if ((err as Error).name !== 'AbortError') {
       const msg = (err as Error).message || (err as Error).name || '未知错误'
@@ -820,9 +860,19 @@ async function moveSelectedFiles() {
   try {
     const targetDir = await window.showDirectoryPicker({ mode: 'readwrite' })
     const selectedItems = currentFiles.value.filter(i => selectedFiles.value.has(i.name))
+    const movedItems: FileSystemItem[] = []
     const copiedItems: FileSystemItem[] = []
 
     for (const item of selectedItems) {
+      const moved = await tryMoveEntry(item.handle as FileSystemHandle, targetDir, item.name)
+      if (moved) {
+        movedItems.push(item)
+      } else {
+        copiedItems.push(item)
+      }
+    }
+
+    for (const item of copiedItems) {
       try {
         if (item.kind === 'directory') {
           await copyDirectoryRecursive(
@@ -833,7 +883,6 @@ async function moveSelectedFiles() {
         } else {
           await copyFile(item.handle as FileSystemFileHandle, targetDir, item.name)
         }
-        copiedItems.push(item)
       } catch (err) {
         const msg = (err as Error).message || (err as Error).name || '未知错误'
         emit('showToast', `移动失败: ${item.name} - ${msg}`)
@@ -853,7 +902,9 @@ async function moveSelectedFiles() {
     lastSelectedIndex.value = -1
     await loadFiles(currentDirHandle.value!)
 
-    emit('showToast', `已移动 ${copiedItems.length} 个文件/目录`)
+    const total = movedItems.length + copiedItems.length
+    const moveHint = movedItems.length > 0 ? `（${movedItems.length} 个秒移）` : ''
+    emit('showToast', `已移动 ${total} 个文件/目录${moveHint}`)
   } catch (err) {
     if ((err as Error).name !== 'AbortError') {
       const msg = (err as Error).message || (err as Error).name || '未知错误'

@@ -15,6 +15,7 @@
           <circle cx="9" cy="7.5" r="1.5" fill="#ffaa44"/>
         </svg>
         <span class="logo-text">壁纸浏览器</span>
+        <MagicCircle @click="$emit('showHelp')" />
       </div>
     </div>
 
@@ -140,6 +141,7 @@
 import { computed, reactive, ref, onMounted, onUnmounted } from 'vue'
 import type { CategoryInfo, WallpaperType } from '../utils/wallpaperScanner'
 import { TYPE_LIST } from '../utils/wallpaperScanner'
+import MagicCircle from './MagicCircle.vue'
 
 const props = defineProps<{
   categories: CategoryInfo[]
@@ -161,6 +163,7 @@ const emit = defineEmits<{
   selectContentRating: [ratings: string[]]
   openDirectory: []
   toggle: []
+  showHelp: []
 }>()
 
 const sections = reactive({
@@ -310,6 +313,11 @@ function toggleContentRating(name: string) {
   display: flex;
   align-items: center;
   gap: 10px;
+  position: relative;
+}
+
+.logo-text {
+  flex: 1;
 }
 
 .logo-text {

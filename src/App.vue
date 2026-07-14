@@ -17,6 +17,7 @@
       @select-content-rating="handleSelectContentRatings"
       @open-directory="openDirectory"
       @toggle="toggleSidebar"
+      @show-help="showHelp"
     />
 
     <main class="main-content">
@@ -159,12 +160,12 @@
           <p>{{ state.error }}</p>
         </div>
 
-        <div v-else-if="filteredAndSorted.length === 0 && state.wallpapers.length > 0" class="empty-state">
+        <div v-else-if="filteredAndSorted.length === 0" class="empty-state">
           <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.5">
             <circle cx="11" cy="11" r="8"/>
             <path d="M21 21l-4.35-4.35"/>
           </svg>
-          <p>未找到匹配的壁纸</p>
+          <p>{{ state.wallpapers.length === 0 ? '当前目录暂无壁纸' : '未找到匹配的壁纸' }}</p>
         </div>
 
         <template v-else>
@@ -413,6 +414,11 @@
         </div>
       </Transition>
     </Teleport>
+
+    <HelpModal
+      :visible="showHelpModal"
+      @close="closeHelp"
+    />
   </div>
 </template>
 
@@ -426,6 +432,7 @@ import DetailPanel from './components/DetailPanel.vue'
 import PreviewModal from './components/PreviewModal.vue'
 import CopyMoveDialog from './components/CopyMoveDialog.vue'
 import BatchCopyMoveDialog from './components/BatchCopyMoveDialog.vue'
+import HelpModal from './components/HelpModal.vue'
 
 const {
   state,
@@ -447,6 +454,7 @@ const selectedWallpaper = ref<WallpaperItem | null>(null)
 const selectedWallpapers = ref<Set<string>>(new Set())
 const isMobile = ref(window.innerWidth <= 768)
 const sidebarCollapsed = ref(isMobile.value)
+const showHelpModal = ref(false)
 
 const sortLabels: Record<string, string> = {
   'name': '名称',
@@ -467,6 +475,15 @@ function setSort(key: SortKey) {
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
+function showHelp() {
+  showHelpModal.value = true
+}
+
+function closeHelp() {
+  showHelpModal.value = false
+  localStorage.setItem('wpb-has-seen-help', 'true')
 }
 
 function onResize() {
@@ -507,6 +524,13 @@ onMounted(async () => {
     state.loading = false
   }
   await loadCurrentPageHandles()
+  
+  const hasSeenHelp = localStorage.getItem('wpb-has-seen-help')
+  if (!hasSeenHelp) {
+    setTimeout(() => {
+      showHelpModal.value = true
+    }, 1500)
+  }
 })
 onUnmounted(() => {
   document.removeEventListener('click', onDocumentClick)
@@ -731,6 +755,20 @@ async function confirmBatchCopyMove(items: { wallpaper: WallpaperItem; dirName: 
         throw new Error(`无法获取 "${wallpaper.name}" 的目录句柄`)
       }
 
+      if (batchCopyMoveState.mode === 'move') {
+        if (conflictMode === 'replace') {
+          try {
+            await targetDirHandle.removeEntry(dirName, { recursive: true })
+          } catch {}
+        }
+        const moved = await tryMoveDirectory(wallpaper.folderHandle, targetDirHandle, dirName)
+        if (moved) {
+          await purgeWallpaper(wallpaper.folderName, true)
+          batchCopyMoveState.progress.current++
+          continue
+        }
+      }
+
       let newDir: FileSystemDirectoryHandle
 
       if (conflictMode === 'replace') {
@@ -746,8 +784,7 @@ async function confirmBatchCopyMove(items: { wallpaper: WallpaperItem; dirName: 
       await copyDirectoryRecursive(wallpaper.folderHandle, newDir, counter)
 
       if (batchCopyMoveState.mode === 'move') {
-        await removeDirectoryContents(wallpaper.folderHandle)
-        await purgeWallpaper(wallpaper.folderName)
+        await purgeWallpaper(wallpaper.folderName, true)
       }
 
       batchCopyMoveState.progress.current++
@@ -948,15 +985,39 @@ function openInWorkshop() {
   if (!contextMenu.wallpaper) return
   const wp = contextMenu.wallpaper
   const workshopId = wp.workshopId || wp.folderName
-  // 唤起 Steam 客户端（跟 Wallpaper Engine 官方一致）
-  window.location.href = `steam://url/CommunityFilePage/${workshopId}`
+  openWorkshopUrl(workshopId)
 }
 
 function openInWorkshopFromDetail() {
   if (!selectedWallpaper.value) return
   const wp = selectedWallpaper.value
   const workshopId = wp.workshopId || wp.folderName
-  window.location.href = `steam://url/CommunityFilePage/${workshopId}`
+  openWorkshopUrl(workshopId)
+}
+
+function openWorkshopUrl(workshopId: string) {
+  const steamUrl = `steam://url/CommunityFilePage/${workshopId}`
+  const webUrl = `https://steamcommunity.com/sharedfiles/filedetails/?id=${workshopId}`
+  
+  window.location.href = steamUrl
+  
+  const fallbackTimer = setTimeout(() => {
+    window.open(webUrl, '_blank')
+  }, 500)
+  
+  const visibilityHandler = () => {
+    clearTimeout(fallbackTimer)
+    document.removeEventListener('visibilitychange', visibilityHandler)
+    window.removeEventListener('blur', visibilityHandler)
+  }
+  
+  document.addEventListener('visibilitychange', visibilityHandler)
+  window.addEventListener('blur', visibilityHandler)
+  
+  setTimeout(() => {
+    document.removeEventListener('visibilitychange', visibilityHandler)
+    window.removeEventListener('blur', visibilityHandler)
+  }, 1000)
 }
 
 // ---- 复制/移动壁纸 ----
@@ -1019,6 +1080,26 @@ async function confirmCopyMove(dirName: string, conflictMode: 'replace' | 'merge
       throw new Error('无法获取目录句柄')
     }
 
+    if (copyMoveState.mode === 'move') {
+      if (conflictMode === 'replace') {
+        try {
+          await target.removeEntry(dirName, { recursive: true })
+        } catch {
+          // 目标不存在，忽略
+        }
+      }
+      const moved = await tryMoveDirectory(wp.folderHandle, target, dirName)
+      if (moved) {
+        showToast('壁纸已移动')
+        const folderName = wp.folderName
+        selectedWallpaper.value = null
+        await purgeWallpaper(folderName, true)
+        await loadCurrentPageHandles()
+        copyMoveState.visible = false
+        return
+      }
+    }
+
     let newDir: FileSystemDirectoryHandle
     if (conflictMode === 'replace') {
       try {
@@ -1038,11 +1119,10 @@ async function confirmCopyMove(dirName: string, conflictMode: 'replace' | 'merge
     await copyDirectoryRecursive(wp.folderHandle, newDir, counter)
 
     if (copyMoveState.mode === 'move') {
-      await removeDirectoryContents(wp.folderHandle)
       showToast('壁纸已移动')
       const folderName = wp.folderName
       selectedWallpaper.value = null
-      await purgeWallpaper(folderName)
+      await purgeWallpaper(folderName, true)
       await loadCurrentPageHandles()
     } else {
       showToast('壁纸已复制')
@@ -1074,42 +1154,83 @@ async function countFiles(dir: FileSystemDirectoryHandle): Promise<number> {
   return total
 }
 
+const COPY_CONCURRENCY = 5
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++
+      results[index] = await fn(items[index])
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+interface CopyTask {
+  sourceHandle: FileSystemFileHandle
+  targetDir: FileSystemDirectoryHandle
+  name: string
+}
+
+async function collectCopyTasks(
+  source: FileSystemDirectoryHandle,
+  target: FileSystemDirectoryHandle,
+  tasks: CopyTask[]
+): Promise<void> {
+  const entries: [string, FileSystemHandle][] = []
+  for await (const [name, handle] of source.entries()) {
+    entries.push([name, handle])
+  }
+  for (const [name, handle] of entries) {
+    if (handle.kind === 'file') {
+      tasks.push({ sourceHandle: handle as FileSystemFileHandle, targetDir: target, name })
+    } else {
+      const newDirHandle = await target.getDirectoryHandle(name, { create: true })
+      await collectCopyTasks(handle as FileSystemDirectoryHandle, newDirHandle, tasks)
+    }
+  }
+}
+
 async function copyDirectoryRecursive(
   source: FileSystemDirectoryHandle,
   target: FileSystemDirectoryHandle,
   counter: { current: number }
 ): Promise<void> {
-  for await (const [name, handle] of source.entries()) {
-    if (handle.kind === 'file') {
-      const file = await (handle as FileSystemFileHandle).getFile()
-      const newFileHandle = await target.getFileHandle(name, { create: true })
-      const writable = await newFileHandle.createWritable()
-      try {
-        await file.stream().pipeTo(writable)
-      } catch (err) {
-        try { await writable.close() } catch { /* ignore */ }
-        throw err
-      }
-      counter.current++
-      if (copyMoveState.processing) {
-        copyMoveState.progress.current = counter.current
-      } else if (batchCopyMoveState.processing) {
-        batchCopyMoveState.progress.current = counter.current
-      }
-    } else {
-      const newDirHandle = await target.getDirectoryHandle(name, { create: true })
-      await copyDirectoryRecursive(handle as FileSystemDirectoryHandle, newDirHandle, counter)
+  const tasks: CopyTask[] = []
+  await collectCopyTasks(source, target, tasks)
+
+  await mapWithConcurrency(tasks, COPY_CONCURRENCY, async (task) => {
+    const file = await task.sourceHandle.getFile()
+    const newFileHandle = await task.targetDir.getFileHandle(task.name, { create: true })
+    const writable = await newFileHandle.createWritable()
+    try {
+      await file.stream().pipeTo(writable)
+    } catch (err) {
+      try { await writable.close() } catch { /* ignore */ }
+      throw err
     }
-  }
+    counter.current++
+    if (copyMoveState.processing) {
+      copyMoveState.progress.current = counter.current
+    }
+  })
 }
 
-async function removeDirectoryContents(dir: FileSystemDirectoryHandle): Promise<void> {
-  const entries: string[] = []
-  for await (const [name] of dir.entries()) {
-    entries.push(name)
-  }
-  for (const name of entries) {
-    await dir.removeEntry(name, { recursive: true })
+async function tryMoveDirectory(
+  source: FileSystemDirectoryHandle,
+  targetParent: FileSystemDirectoryHandle,
+  name: string
+): Promise<boolean> {
+  const moveFn = (source as any).move
+  if (typeof moveFn !== 'function') return false
+  try {
+    await moveFn.call(source, targetParent, name)
+    return true
+  } catch {
+    return false
   }
 }
 

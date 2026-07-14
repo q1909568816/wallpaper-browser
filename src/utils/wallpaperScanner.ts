@@ -172,8 +172,19 @@ async function loadWorkshopMetadata(dirHandle: FileSystemDirectoryHandle): Promi
     workshopContentHandle = await contentDir.getDirectoryHandle('431960')
   } catch { /* ignore */ }
 
-  if (!workshopContentHandle && dirHandle.name === '431960') {
-    workshopContentHandle = dirHandle
+  // 兜底：用户直接选中壁纸容器目录（如 431960 或自定义的 B 目录）
+  // 通过检查是否有 project.json 区分"容器目录"和"单个壁纸目录"
+  if (!workshopContentHandle) {
+    let hasProjectJson = false
+    try {
+      await dirHandle.getFileHandle('project.json')
+      hasProjectJson = true
+    } catch { /* 没有 project.json */ }
+    // 只有容器目录（无 project.json）才设为 workshopContentHandle
+    // 单个壁纸目录（有 project.json）保持 null，让 root fallback 生效
+    if (!hasProjectJson) {
+      workshopContentHandle = dirHandle
+    }
   }
 
   // 查找 workshopcache.json 并缓存到 IndexedDB
@@ -467,7 +478,7 @@ function sortSubdirsByWorkshopDate(): void {
   allSubdirs.sort((a, b) => b.lastModified - a.lastModified)
 }
 
-async function scanDirectory(dirHandle: FileSystemDirectoryHandle): Promise<void> {
+async function scanDirectory(dirHandle: FileSystemDirectoryHandle, allowRootFallback = true): Promise<void> {
   const scanned = new Map<string, WallpaperItem>()
   allSubdirs = []
   loadedDirNames.clear()
@@ -519,13 +530,15 @@ async function scanDirectory(dirHandle: FileSystemDirectoryHandle): Promise<void
 
   scheduleBackgroundLoad(scanned)
 
-  const rootWallpaper = await scanWallpaperDir(dirHandle.name, dirHandle)
-  if (rootWallpaper && allSubdirs.length === 0) {
-    if (!scanned.has(rootWallpaper.folderName)) {
-      scanned.set(rootWallpaper.folderName, rootWallpaper)
-      state.wallpapers.push(rootWallpaper)
-      loadedDirNames.add(rootWallpaper.folderName)
-      state.loadedCount = state.wallpapers.length
+  if (allowRootFallback && allSubdirs.length === 0) {
+    const rootWallpaper = await scanWallpaperDir(dirHandle.name, dirHandle)
+    if (rootWallpaper) {
+      if (!scanned.has(rootWallpaper.folderName)) {
+        scanned.set(rootWallpaper.folderName, rootWallpaper)
+        state.wallpapers.push(rootWallpaper)
+        loadedDirNames.add(rootWallpaper.folderName)
+        state.loadedCount = state.wallpapers.length
+      }
     }
   }
 }
@@ -718,8 +731,7 @@ async function scanWallpaperDir(
       if (isVideo) hasVideo = true
       files.push({
         name: f.name,
-        handle: f.handle,
-        type: f.handle ? (f.handle as any).type : undefined
+        handle: f.handle
       })
     }
     if (isWebFile(f.name)) hasWeb = true
@@ -737,8 +749,8 @@ async function scanWallpaperDir(
   }
 
   files.sort((a, b) => {
-    const aIsImage = a.type?.startsWith('image/') ?? false
-    const bIsImage = b.type?.startsWith('image/') ?? false
+    const aIsImage = isImageFile(a.name)
+    const bIsImage = isImageFile(b.name)
     if (aIsImage && !bIsImage) return -1
     if (!aIsImage && bIsImage) return 1
     return 0
@@ -922,12 +934,14 @@ async function scanDirectoryFromHandle(dirHandle: FileSystemDirectoryHandle): Pr
     await loadWorkshopMetadata(dirHandle)
 
     let scanHandle = dirHandle
+    let allowRootFallback = true
     if (workshopContentHandle) {
       scanHandle = workshopContentHandle
+      allowRootFallback = false
     }
 
     state.rootDirName = dirHandle.name
-    await scanDirectory(scanHandle)
+    await scanDirectory(scanHandle, allowRootFallback)
 
     // 现在匹配并应用 workshop metadata
     applyBulkWorkshopMetadata()
@@ -961,13 +975,7 @@ export async function restoreSavedDirectory(): Promise<boolean> {
       if (newPermission !== 'granted') return false
     }
 
-    try {
-      await savedHandle.getDirectoryHandle('workshop', { create: false })
-    } catch {
-      await resetState()
-      return false
-    }
-
+    // 不再前置检查 workshop/431960：loadWorkshopMetadata 会兜底处理任意壁纸容器目录
     const restored = await restoreFromCache(savedHandle)
     if (restored) {
       return true
@@ -1006,8 +1014,28 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
 
     await loadWorkshopMetadata(dirHandle)
 
+    const contentHandle = workshopContentHandle || dirHandle
+
+    const diskNames = new Set<string>()
+    const diskHandleMap = new Map<string, FileSystemDirectoryHandle>()
+    try {
+      for await (const [name, handle] of contentHandle.entries()) {
+        if (handle.kind === 'directory') {
+          diskNames.add(name)
+          diskHandleMap.set(name, handle as FileSystemDirectoryHandle)
+        }
+      }
+    } catch {
+      return false
+    }
+
+    const staleNames: string[] = []
     const restored: WallpaperItem[] = []
     for (const c of cachedList) {
+      if (!diskNames.has(c.folderName)) {
+        staleNames.push(c.folderName)
+        continue
+      }
       restored.push({
         ...c,
         id: `wp-${c.folderName}`,
@@ -1020,12 +1048,18 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
       })
     }
 
+    for (const name of staleNames) {
+      await deleteCachedWallpaper(name)
+      await deleteCachedDirectoryHandle(name)
+      clearCoverUrl(name)
+    }
+
     restored.sort((a, b) => b.lastModified - a.lastModified)
 
-    if (restored.length === 0) return false
+    if (restored.length === 0 && staleNames.length === 0) return false
 
     state.wallpapers = restored
-    state.totalSubdirs = restored.length
+    state.totalSubdirs = diskNames.size
     state.loadedCount = restored.length
     state.rootDirName = dirHandle.name
     state.categories = buildCategories(state.wallpapers)
@@ -1038,15 +1072,25 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
     state.loading = false
     state.loadingMore = false
 
-    allSubdirs = restored.map(wp => ({
-      name: wp.folderName,
-      handle: wp.folderHandle || ({} as FileSystemDirectoryHandle),
-      lastModified: wp.lastModified
-    }))
-    loadedDirNames = new Set(restored.filter(wp => wp.folderHandle).map(wp => wp.folderName))
+    allSubdirs = []
+    for (const name of diskNames) {
+      const handle = diskHandleMap.get(name)
+      const wp = restored.find(w => w.folderName === name)
+      allSubdirs.push({
+        name,
+        handle: handle || ({} as FileSystemDirectoryHandle),
+        lastModified: wp?.lastModified || 0
+      })
+    }
+    sortSubdirsByWorkshopDate()
+    loadedDirNames = new Set(restored.map(wp => wp.folderName))
 
-    // 启动后台增量同步：扫描磁盘上存在但缓存中缺失的目录
-    void continueIncrementalScan()
+    const hasMissing = Array.from(diskNames).some(n => !restored.some(w => w.folderName === n))
+    if (hasMissing) {
+      void continueIncrementalScan()
+    } else {
+      updateCategoriesAndTags()
+    }
 
     return true
   } catch {
@@ -1216,7 +1260,7 @@ export async function loadPageHandles(folderNames: string[]): Promise<void> {
           const files: { name: string; handle?: FileSystemFileHandle; type?: string }[] = []
           for await (const [name, handle] of subdirHandle.entries()) {
             if (handle.kind === 'file') {
-              files.push({ name, handle: handle as FileSystemFileHandle, type: (handle as any).type })
+              files.push({ name, handle: handle as FileSystemFileHandle })
             }
           }
           wallpaper.files = files
@@ -1452,7 +1496,12 @@ export function getCoverUrl(folderName: string): string | undefined {
   return coverUrlCache.get(folderName)
 }
 
-export async function purgeWallpaper(folderName: string): Promise<void> {
+export async function purgeWallpaper(folderName: string, deleteFromDisk = false): Promise<void> {
+  if (deleteFromDisk && workshopContentHandle) {
+    try {
+      await workshopContentHandle.removeEntry(folderName, { recursive: true })
+    } catch { /* 目录已不存在或已被 move 移走，忽略 */ }
+  }
   state.wallpapers = state.wallpapers.filter(w => w.folderName !== folderName)
   loadedDirNames.delete(folderName)
   const idx = allSubdirs.findIndex(s => s.name === folderName)
