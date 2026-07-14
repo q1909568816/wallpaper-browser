@@ -34,9 +34,14 @@ onMounted(() => {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  const size = 36
-  canvas.width = size
-  canvas.height = size
+  const size = 64
+  const ratio = window.devicePixelRatio
+
+  canvas.style.width = `${size}px`
+  canvas.style.height = `${size}px`
+  canvas.width = size * ratio
+  canvas.height = size * ratio
+  ctx.scale(ratio, ratio)
 
   let progress = 0
   let rotation = 0
@@ -369,11 +374,12 @@ onUnmounted(() => {
 <style scoped>
 .magic-circle-container {
   position: absolute;
-  right: 0;
+  right: -15px;
   top: 50%;
   transform: translateY(-50%);
-  width: 36px;
-  height: 36px;
+  width: 64px;
+  height: 64px;
+  aspect-ratio: 1 / 1;
   cursor: pointer;
   overflow: visible;
 }
