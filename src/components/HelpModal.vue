@@ -127,6 +127,8 @@ defineEmits<{
 .help-icon {
   color: white;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
 .help-header h3 {
@@ -135,7 +137,7 @@ defineEmits<{
   font-size: 18px;
   font-weight: 600;
   color: white;
-  text-align: center;
+  text-align: left;
 }
 
 .help-close {

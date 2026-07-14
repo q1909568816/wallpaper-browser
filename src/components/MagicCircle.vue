@@ -1,5 +1,5 @@
 <template>
-  <div class="magic-circle-container" @click="$emit('click')">
+  <div class="magic-circle-container" @click="handleClick">
     <canvas ref="canvasRef" class="magic-canvas"></canvas>
     <div class="magic-glow"></div>
   </div>
@@ -8,12 +8,24 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 
-defineEmits<{
+const emit = defineEmits<{
   click: []
 }>()
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let animationId: number | null = null
+
+type AnimationType = 'hexagram' | 'flower' | 'clover' | 'snowflake'
+const animations: AnimationType[] = ['hexagram', 'flower', 'clover', 'snowflake']
+let currentAnimation: AnimationType = 'hexagram'
+let resetProgress = false
+
+function handleClick() {
+  const others = animations.filter(a => a !== currentAnimation)
+  currentAnimation = others[Math.floor(Math.random() * others.length)]
+  resetProgress = true
+  emit('click')
+}
 
 onMounted(() => {
   const canvas = canvasRef.value
@@ -22,78 +34,206 @@ onMounted(() => {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
 
-  const size = 40
+  const size = 36
   canvas.width = size
   canvas.height = size
 
   let progress = 0
   let rotation = 0
 
-  const drawStar = (cx: number, cy: number, outerRadius: number, innerRadius: number, points: number, rotationOffset: number, drawProgress: number, color: string) => {
-    const totalPoints = points * 2
-    const drawnPoints = Math.floor(totalPoints * drawProgress)
-    
-    if (drawnPoints === 0) return
+  const drawStar = (cx: number, cy: number, outerR: number, innerR: number, points: number, rot: number, drawP: number, color: string) => {
+    const totalPts = points * 2
+    const drawn = Math.floor(totalPts * drawP)
+    if (drawn === 0) return
 
     ctx.beginPath()
     ctx.strokeStyle = color
     ctx.lineWidth = 1.5
     ctx.lineCap = 'round'
 
-    for (let i = 0; i <= drawnPoints; i++) {
-      const angle = (Math.PI / points) * i - Math.PI / 2 + rotationOffset
-      const radius = i % 2 === 0 ? outerRadius : innerRadius
-      const x = cx + Math.cos(angle) * radius
-      const y = cy + Math.sin(angle) * radius
-
-      if (i === 0) {
-        ctx.moveTo(x, y)
-      } else {
-        ctx.lineTo(x, y)
-      }
+    for (let i = 0; i <= drawn; i++) {
+      const angle = (Math.PI / points) * i - Math.PI / 2 + rot
+      const r = i % 2 === 0 ? outerR : innerR
+      const x = cx + Math.cos(angle) * r
+      const y = cy + Math.sin(angle) * r
+      if (i === 0) ctx.moveTo(x, y)
+      else ctx.lineTo(x, y)
     }
-
     ctx.stroke()
   }
 
-  const drawCircle = (cx: number, cy: number, radius: number, drawProgress: number, color: string) => {
+  const drawCircle = (cx: number, cy: number, radius: number, drawP: number, color: string, lineW = 1) => {
     ctx.beginPath()
     ctx.strokeStyle = color
-    ctx.lineWidth = 1
+    ctx.lineWidth = lineW
     ctx.lineCap = 'round'
-
-    const startAngle = -Math.PI / 2
-    const endAngle = startAngle + Math.PI * 2 * drawProgress
-
-    ctx.arc(cx, cy, radius, startAngle, endAngle)
+    const startA = -Math.PI / 2
+    const endA = startA + Math.PI * 2 * drawP
+    ctx.arc(cx, cy, radius, startA, endA)
     ctx.stroke()
   }
 
-  const drawRune = (cx: number, cy: number, radius: number, index: number, total: number, rotationOffset: number, drawProgress: number) => {
-    const angle = (Math.PI * 2 / total) * index + rotationOffset
-    const x = cx + Math.cos(angle) * radius
-    const y = cy + Math.sin(angle) * radius
+  const drawPetal = (cx: number, cy: number, r: number, angle: number, drawP: number, color: string) => {
+    const petalLen = r * drawP
+    if (petalLen <= 0) return
 
     ctx.save()
-    ctx.translate(x, y)
-    ctx.rotate(angle + Math.PI / 2)
-
-    const runeHeight = 8 * drawProgress
+    ctx.translate(cx, cy)
+    ctx.rotate(angle)
     ctx.beginPath()
-    ctx.strokeStyle = 'rgba(59, 130, 246, 0.6)'
+    ctx.strokeStyle = color
     ctx.lineWidth = 1.5
-
-    ctx.moveTo(0, -runeHeight / 2)
-    ctx.lineTo(0, runeHeight / 2)
-
-    ctx.moveTo(-2, -runeHeight / 4)
-    ctx.lineTo(2, -runeHeight / 4)
-
-    ctx.moveTo(-2, runeHeight / 4)
-    ctx.lineTo(2, runeHeight / 4)
-
+    ctx.lineCap = 'round'
+    ctx.moveTo(0, 0)
+    ctx.quadraticCurveTo(r * 0.5, -r * 0.3, 0, -petalLen)
+    ctx.quadraticCurveTo(-r * 0.5, -r * 0.3, 0, 0)
     ctx.stroke()
     ctx.restore()
+  }
+
+  const drawFlower = (cx: number, cy: number, r: number, petals: number, rot: number, drawP: number, color: string) => {
+    const petalProgress = drawP * petals
+    const fullPetals = Math.floor(petalProgress)
+    const partialP = petalProgress - fullPetals
+
+    for (let i = 0; i < fullPetals; i++) {
+      const angle = (Math.PI * 2 / petals) * i + rot
+      drawPetal(cx, cy, r, angle, 1, color)
+    }
+    if (partialP > 0 && fullPetals < petals) {
+      const angle = (Math.PI * 2 / petals) * fullPetals + rot
+      drawPetal(cx, cy, r, angle, partialP, color)
+    }
+  }
+
+  const drawCloverLeaf = (cx: number, cy: number, r: number, angle: number, drawP: number, color: string) => {
+    const leafSize = r * drawP
+    if (leafSize <= 0) return
+
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.rotate(angle)
+    ctx.beginPath()
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.5
+    ctx.lineCap = 'round'
+    const leafR = r * 0.55
+    const offset = r * 0.4
+    ctx.moveTo(0, 0)
+    ctx.arc(-leafR, -offset, leafR, 0, Math.PI, true)
+    ctx.arc(leafR, -offset, leafR, 0, Math.PI, true)
+    ctx.lineTo(0, 0)
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  const drawClover = (cx: number, cy: number, r: number, rot: number, drawP: number, color: string) => {
+    const leaves = 4
+    const leafProgress = drawP * leaves
+    const fullLeaves = Math.floor(leafProgress)
+    const partialP = leafProgress - fullLeaves
+
+    for (let i = 0; i < fullLeaves; i++) {
+      const angle = (Math.PI * 2 / leaves) * i + Math.PI / 4 + rot
+      drawCloverLeaf(cx, cy, r, angle, 1, color)
+    }
+    if (partialP > 0 && fullLeaves < leaves) {
+      const angle = (Math.PI * 2 / leaves) * fullLeaves + Math.PI / 4 + rot
+      drawCloverLeaf(cx, cy, r, angle, partialP, color)
+    }
+  }
+
+  const drawSnowflakeArm = (cx: number, cy: number, len: number, angle: number, drawP: number, color: string) => {
+    const armLen = len * drawP
+    if (armLen <= 0) return
+
+    ctx.save()
+    ctx.translate(cx, cy)
+    ctx.rotate(angle)
+    ctx.beginPath()
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1.5
+    ctx.lineCap = 'round'
+    ctx.moveTo(0, 0)
+    ctx.lineTo(0, -armLen)
+    const branchLen = armLen * 0.35
+    if (armLen > len * 0.3) {
+      ctx.moveTo(0, -armLen * 0.4)
+      ctx.lineTo(-branchLen, -armLen * 0.4 - branchLen * 0.6)
+      ctx.moveTo(0, -armLen * 0.4)
+      ctx.lineTo(branchLen, -armLen * 0.4 - branchLen * 0.6)
+    }
+    if (armLen > len * 0.65) {
+      ctx.moveTo(0, -armLen * 0.7)
+      ctx.lineTo(-branchLen * 0.8, -armLen * 0.7 - branchLen * 0.5)
+      ctx.moveTo(0, -armLen * 0.7)
+      ctx.lineTo(branchLen * 0.8, -armLen * 0.7 - branchLen * 0.5)
+    }
+    ctx.stroke()
+    ctx.restore()
+  }
+
+  const drawSnowflake = (cx: number, cy: number, r: number, rot: number, drawP: number, color: string) => {
+    const arms = 6
+    const armProgress = drawP * arms
+    const fullArms = Math.floor(armProgress)
+    const partialP = armProgress - fullArms
+
+    for (let i = 0; i < fullArms; i++) {
+      const angle = (Math.PI * 2 / arms) * i + rot
+      drawSnowflakeArm(cx, cy, r, angle, 1, color)
+    }
+    if (partialP > 0 && fullArms < arms) {
+      const angle = (Math.PI * 2 / arms) * fullArms + rot
+      drawSnowflakeArm(cx, cy, r, angle, partialP, color)
+    }
+  }
+
+  const drawRunes = (cx: number, cy: number, r: number, count: number, rot: number, drawP: number, color: string) => {
+    const runeProgress = drawP * count
+    const fullCount = Math.floor(runeProgress)
+    const partialP = runeProgress - fullCount
+
+    for (let i = 0; i < fullCount; i++) {
+      const angle = (Math.PI * 2 / count) * i + rot
+      const x = cx + Math.cos(angle) * r
+      const y = cy + Math.sin(angle) * r
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(angle + Math.PI / 2)
+      const runeH = 6
+      ctx.beginPath()
+      ctx.strokeStyle = color
+      ctx.lineWidth = 1
+      ctx.moveTo(0, -runeH / 2)
+      ctx.lineTo(0, runeH / 2)
+      ctx.moveTo(-2, -runeH / 4)
+      ctx.lineTo(2, -runeH / 4)
+      ctx.moveTo(-2, runeH / 4)
+      ctx.lineTo(2, runeH / 4)
+      ctx.stroke()
+      ctx.restore()
+    }
+    if (partialP > 0 && fullCount < count) {
+      const angle = (Math.PI * 2 / count) * fullCount + rot
+      const x = cx + Math.cos(angle) * r
+      const y = cy + Math.sin(angle) * r
+      ctx.save()
+      ctx.translate(x, y)
+      ctx.rotate(angle + Math.PI / 2)
+      const runeH = 6 * partialP
+      ctx.beginPath()
+      ctx.strokeStyle = color
+      ctx.lineWidth = 1
+      ctx.moveTo(0, -runeH / 2)
+      ctx.lineTo(0, runeH / 2)
+      if (partialP > 0.5) {
+        ctx.moveTo(-2, -runeH / 4)
+        ctx.lineTo(2, -runeH / 4)
+      }
+      ctx.stroke()
+      ctx.restore()
+    }
   }
 
   const animate = () => {
@@ -102,55 +242,114 @@ onMounted(() => {
     const cx = size / 2
     const cy = size / 2
 
-    progress += 0.008
-    if (progress > 1) {
-      progress = 1
+    if (resetProgress) {
+      progress = 0
+      resetProgress = false
     }
+
+    progress += 0.01
+    if (progress > 1) progress = 1
 
     if (progress >= 1) {
-      rotation += 0.005
+      rotation += 0.004
     }
 
-    const glowIntensity = 0.3 + Math.sin(Date.now() / 1500) * 0.2
+    const glow = 0.3 + Math.sin(Date.now() / 1500) * 0.2
+    const blue = `rgba(59, 130, 246, ${0.7 + glow * 0.3})`
+    const purple = `rgba(168, 85, 247, ${0.5 + glow * 0.2})`
+    const lightBlue = `rgba(59, 130, 246, ${0.5 + glow * 0.3})`
+    const lightPurple = `rgba(168, 85, 247, ${0.4 + glow * 0.2})`
+    const center = `rgba(59, 130, 246, ${0.15 + glow * 0.1})`
+    const centerBorder = `rgba(59, 130, 246, ${0.4 + glow * 0.2})`
 
-    if (progress < 0.3) {
-      drawCircle(cx, cy, 22, progress / 0.3, `rgba(59, 130, 246, ${0.5 * (progress / 0.3)})`)
-    } else {
-      drawCircle(cx, cy, 22, 1, `rgba(59, 130, 246, ${0.5 + glowIntensity * 0.3})`)
-    }
+    switch (currentAnimation) {
+      case 'hexagram':
+        if (progress < 0.3) {
+          drawCircle(cx, cy, 15, progress / 0.3, lightBlue)
+        } else {
+          drawCircle(cx, cy, 15, 1, lightBlue)
+        }
+        if (progress < 0.5) {
+          drawCircle(cx, cy, 11, Math.max(0, (progress - 0.3) / 0.2), lightPurple)
+        } else {
+          drawCircle(cx, cy, 11, 1, lightPurple)
+        }
+        if (progress < 0.7) {
+          const sp = Math.max(0, (progress - 0.5) / 0.2)
+          drawStar(cx, cy, 12.5, 5.5, 6, rotation, sp, blue)
+          drawStar(cx, cy, 12.5, 5.5, 6, rotation + Math.PI / 6, sp, purple)
+        } else {
+          drawStar(cx, cy, 12.5, 5.5, 6, rotation, 1, blue)
+          drawStar(cx, cy, 12.5, 5.5, 6, rotation + Math.PI / 6, 1, purple)
+        }
+        if (progress >= 0.7) {
+          const rp = (progress - 0.7) / 0.3
+          drawRunes(cx, cy, 16.5, 6, rotation, rp, 'rgba(59, 130, 246, 0.5)')
+        }
+        break
 
-    if (progress < 0.5) {
-      drawCircle(cx, cy, 16, (progress - 0.3) / 0.2, `rgba(168, 85, 247, ${0.4 * ((progress - 0.3) / 0.2)})`)
-    } else {
-      drawCircle(cx, cy, 16, 1, `rgba(168, 85, 247, ${0.4 + glowIntensity * 0.2})`)
-    }
+      case 'flower':
+        if (progress < 0.4) {
+          drawCircle(cx, cy, 15, progress / 0.4, lightPurple)
+        } else {
+          drawCircle(cx, cy, 15, 1, lightPurple)
+        }
+        if (progress < 0.85) {
+          const fp = Math.max(0, (progress - 0.15) / 0.7)
+          drawFlower(cx, cy, 12, 8, -Math.PI / 2 + rotation, fp, purple)
+          drawFlower(cx, cy, 9, 8, Math.PI / 8 - rotation, fp * 0.8, blue)
+        } else {
+          drawFlower(cx, cy, 12, 8, -Math.PI / 2 + rotation, 1, purple)
+          drawFlower(cx, cy, 9, 8, Math.PI / 8 - rotation, 1, blue)
+        }
+        break
 
-    if (progress < 0.7) {
-      const starProgress = (progress - 0.5) / 0.2
-      drawStar(cx, cy, 18, 8, 6, rotation, starProgress, 'rgba(59, 130, 246, 0.7)')
-      drawStar(cx, cy, 18, 8, 6, rotation + Math.PI / 6, starProgress, 'rgba(168, 85, 247, 0.5)')
-    } else {
-      drawStar(cx, cy, 18, 8, 6, rotation, 1, `rgba(59, 130, 246, ${0.7 + glowIntensity * 0.3})`)
-      drawStar(cx, cy, 18, 8, 6, rotation + Math.PI / 6, 1, `rgba(168, 85, 247, ${0.5 + glowIntensity * 0.2})`)
-    }
+      case 'clover':
+        if (progress < 0.4) {
+          drawCircle(cx, cy, 15, progress / 0.4, lightBlue)
+        } else {
+          drawCircle(cx, cy, 15, 1, lightBlue)
+        }
+        if (progress < 0.85) {
+          const cp = Math.max(0, (progress - 0.2) / 0.65)
+          drawClover(cx, cy, 12, rotation, cp, blue)
+        } else {
+          drawClover(cx, cy, 12, rotation, 1, blue)
+        }
+        if (progress >= 0.6) {
+          const dp = (progress - 0.6) / 0.4
+          drawCircle(cx, cy, 4, dp, purple, 1.5)
+        }
+        break
 
-    if (progress >= 0.7) {
-      const runeProgress = (progress - 0.7) / 0.3
-      for (let i = 0; i < 6; i++) {
-        drawRune(cx, cy, 24, i, 6, rotation, runeProgress)
-      }
+      case 'snowflake':
+        if (progress < 0.4) {
+          drawCircle(cx, cy, 15, progress / 0.4, lightBlue)
+        } else {
+          drawCircle(cx, cy, 15, 1, lightBlue)
+        }
+        if (progress < 0.85) {
+          const sp = Math.max(0, (progress - 0.15) / 0.7)
+          drawSnowflake(cx, cy, 13, -Math.PI / 2 + rotation, sp, blue)
+        } else {
+          drawSnowflake(cx, cy, 13, -Math.PI / 2 + rotation, 1, blue)
+        }
+        if (progress >= 0.6) {
+          const ip = (progress - 0.6) / 0.4
+          drawCircle(cx, cy, 3.5, ip, purple, 1.5)
+        }
+        break
     }
 
     if (progress >= 1) {
       ctx.beginPath()
-      ctx.fillStyle = `rgba(59, 130, 246, ${0.15 + glowIntensity * 0.1})`
-      ctx.arc(cx, cy, 5, 0, Math.PI * 2)
+      ctx.fillStyle = center
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2)
       ctx.fill()
-
       ctx.beginPath()
-      ctx.strokeStyle = `rgba(59, 130, 246, ${0.4 + glowIntensity * 0.2})`
+      ctx.strokeStyle = centerBorder
       ctx.lineWidth = 1
-      ctx.arc(cx, cy, 5, 0, Math.PI * 2)
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2)
       ctx.stroke()
     }
 
@@ -173,9 +372,10 @@ onUnmounted(() => {
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   cursor: pointer;
+  overflow: visible;
 }
 
 .magic-canvas {
@@ -188,8 +388,8 @@ onUnmounted(() => {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
