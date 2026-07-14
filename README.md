@@ -9,14 +9,18 @@
 - ⚡ **增量同步** - 自动检测新增/删除壁纸，无需全量扫描
 - 🏷️ **智能分类** - 根据文件夹名称自动识别壁纸分类（场景、动漫、游戏、自然等）
 - 📂 **类型过滤** - 场景、视频、网页、应用四种类型，自动根据 project.json 推断
-- 🔍 **实时搜索** - 支持按名称、文件夹名、分类搜索
+- 🔍 **实时搜索** - 支持按名称、文件夹名、分类搜索（300ms 防抖）
 - 📊 **多种排序** - 按名称、下载时间、分类排序，支持升序/降序切换
 - 🖼️ **高清预览** - 大图浏览、缩略图导航、键盘快捷键支持
 - 📋 **详情面板** - 右侧详情面板显示壁纸完整信息，文件系统浏览器
 - 🖥️ **一键设置壁纸** - 通过自定义协议静默调用 Wallpaper Engine 设置壁纸
 - 📂 **打开本地目录** - 快速定位壁纸所在文件夹，支持文件系统子目录
 - ▶️ **加入播放列表** - 直接写入 WE 播放列表配置，支持视频和场景壁纸
-- 🎨 **Steam 风格** - 界面设计致敬 Wallpaper Engine 创意工坊风格
+- 🎮 **在创意工坊打开** - 通过 `steam://url/CommunityFilePage/<id>` 协议唤起 Steam 客户端打开对应壁纸详情页
+- 📋 **复制 / 移动壁纸** - 单个或批量复制/移动壁纸到任意目录，支持同名冲突检测（替换/合并）
+- 🗂️ **文件系统右键操作** - 右侧文件系统支持 Shift 连续选择、Ctrl 单选，右键复制/移动文件
+- 📱 **移动端适配** - 触摸手势支持，移动端默认显示选择框
+- 🎨 **Steam 风格** - 界面设计致敬 Wallpaper Engine 创意工坊风格，柔和配色
 
 ## 技术栈
 
@@ -88,18 +92,41 @@ npm run preview
 | `wallpaper-browser://open?id=ID&path=sub/dir` | 打开壁纸子目录 |
 | `wallpaper-browser://addplaylist?id=ID` | 加入播放列表（写入 config.json） |
 
-### 右键菜单
+### 右键菜单（壁纸卡片）
 
-- **设为壁纸** — 静默切换桌面壁纸，WE 未运行时自动后台启动
-- **加入播放列表** — 直接写入 WE 的 config.json 播放列表配置（需 WE 运行）
-- **打开本地目录** — 用资源管理器打开壁纸所在文件夹
-- **复制路径 / 复制名称** — 复制到剪贴板
+按功能分组：
 
-### 详情面板
+- **操作类**：设为壁纸 / 加入播放列表 / 在创意工坊打开
+- **复制信息类**：复制路径 / 复制名称
+- **文件管理类**：打开目录 / 复制壁纸 / 移动壁纸
 
-- **上排**：打开目录 / 复制路径 / 复制名称
-- **下排**：设为壁纸 / 加入播放列表
-- **文件系统**：浏览壁纸子目录和文件，右键可打开子目录
+### 详情面板按钮
+
+- **第一行**：设为壁纸 / 加入播放列表 / 在创意工坊打开（按钮自适应宽度）
+- **第二行**：复制路径 / 复制名称
+- **第三行**：打开目录 / 复制壁纸 / 移动壁纸
+- **文件系统**：浏览壁纸子目录和文件，支持右键菜单
+
+### 文件系统右键菜单
+
+右侧文件系统区域支持 Windows 风格的多选与操作：
+
+- **单击**：选中单个文件/文件夹
+- **Shift + 单击**：连续多选
+- **Ctrl / Cmd + 单击**：任意多选
+- **右键菜单**：复制文件路径 / 复制选中项 / 移动选中项 / 预览 / 打开本地目录
+- 进入子目录时自动清空当前选择
+
+### 批量复制 / 移动
+
+- 壁纸卡片悬停显示选择框，或移动端默认显示
+- 顶部出现「全选 / 取消全选 / 复制 / 移动」按钮（支持跨页选择）
+- 点击复制/移动后选择目标目录，弹出批量操作对话框
+- 对话框显示每项壁纸的名称、类型、年龄分级、源目录、目标位置（可单独编辑）、冲突处理
+- 支持分页查看，冲突项高亮显示
+- 使用流式传输（`file.stream().pipeTo(writable)`）避免大文件内存溢出
+- 逐个壁纸处理，每个壁纸开始前懒加载 `folderHandle`（避免一次性加载导致卡顿）
+- 移动操作完成后自动清理本地状态、IndexedDB 缓存和内存中的 Object URL
 
 ### 特性
 
@@ -108,6 +135,7 @@ npm run preview
 - 支持多 Steam 库目录（自定义安装路径）
 - PowerShell 5.1 兼容（Windows 10/11 自带，无需升级）
 - 自动识别视频（.mp4/.avi 等）和场景（.pkg）壁纸
+- 在创意工坊打开通过 Steam 自定义协议唤起 Steam 客户端
 
 ### 卸载方法
 
@@ -131,26 +159,30 @@ npm run preview
 wallpaper-browser/
 ├── src/
 │   ├── components/
-│   │   ├── Sidebar.vue         # 侧边栏（类型+分类双栏目，多选）
-│   │   ├── WallpaperCard.vue   # 壁纸卡片（封面懒加载）
-│   │   ├── PreviewModal.vue    # 预览模态框
-│   │   └── DetailPanel.vue     # 右侧详情面板（含文件系统浏览器）
+│   │   ├── Sidebar.vue              # 侧边栏（类型+分类双栏目，多选）
+│   │   ├── WallpaperCard.vue        # 壁纸卡片（封面懒加载、选择框）
+│   │   ├── PreviewModal.vue         # 预览模态框
+│   │   ├── DetailPanel.vue          # 右侧详情面板（含文件系统浏览器）
+│   │   ├── CopyMoveDialog.vue       # 单个壁纸复制/移动对话框
+│   │   └── BatchCopyMoveDialog.vue  # 批量复制/移动对话框
 │   ├── utils/
-│   │   ├── wallpaperScanner.ts # 核心扫描逻辑（增量同步）
-│   │   ├── cache.ts            # IndexedDB 缓存管理
-│   │   └── workshopMetadata.ts # workshopcache.json 解析
-│   ├── App.vue                 # 主应用组件
-│   ├── main.ts                 # 入口文件
-│   └── style.css               # 全局样式
+│   │   ├── wallpaperScanner.ts      # 核心扫描逻辑（增量同步、封面 URL 缓存）
+│   │   ├── cache.ts                 # IndexedDB 缓存管理（单例防竞态）
+│   │   ├── workshopMetadata.ts      # workshopcache.json 解析
+│   │   └── webPreview.ts            # 网页壁纸预览支持
+│   ├── App.vue                      # 主应用组件
+│   ├── main.ts                      # 入口文件
+│   └── style.scss                   # 全局样式（含统一滚动条样式）
 ├── protocol/
-│   ├── install.bat             # 协议安装脚本
-│   ├── uninstall.bat           # 协议卸载脚本
-│   ├── handler.ps1             # 协议处理（设置壁纸/打开目录/加入播放列表）
-│   ├── marker.ps1              # 检测标记写入
-│   └── cleanup.ps1             # 卸载清理辅助脚本
+│   ├── install.bat                  # 协议安装脚本
+│   ├── uninstall.bat                # 协议卸载脚本
+│   ├── handler.ps1                  # 协议处理（设置壁纸/打开目录/加入播放列表）
+│   ├── marker.ps1                   # 检测标记写入
+│   └── cleanup.ps1                  # 卸载清理辅助脚本
 ├── public/
 │   ├── favicon.svg
-│   └── icons.svg
+│   ├── icons.svg
+│   └── manifest.json
 ├── index.html
 ├── package.json
 ├── tsconfig.json
@@ -168,6 +200,8 @@ wallpaper-browser/
 | 网页 | 包含 `.html` 文件或 project.json 指定 `web` |
 | 应用 | 包含 `.exe`/`.pkg` 文件 |
 
+> 文件类型判断统一使用 MIME 类型，而非文件扩展名
+
 ## 分类映射
 
 应用会根据文件夹名称中的关键词自动分类：
@@ -180,7 +214,7 @@ wallpaper-browser/
 | abstract | 抽象 |
 | minimalist | 极简 |
 | space | 太空 |
-| cyberpunk | 赞博朋克 |
+| cyberpunk | 赛博朋克 |
 | animals | 动物 |
 | movie, cinema | 影视 |
 | music | 音乐 |
@@ -189,9 +223,13 @@ wallpaper-browser/
 ## 性能优化
 
 - **封面懒加载** - 使用 IntersectionObserver，仅加载可视区域封面
-- **IndexedDB 缓存** - 元数据和目录句柄持久化，无需重新授权
-- **增量同步** - 比对磁盘目录变化，仅处理新增/删除项
+- **IndexedDB 缓存** - 元数据和目录句柄持久化，无需重新授权；`openDB` 单例模式防止并发竞态
+- **增量同步** - 比对磁盘目录变化，仅处理新增/删除项；每扫描一个目录立即写入 IndexedDB
 - **workshopcache.json** - 使用 Steam 缓存文件获取下载时间，避免扫描文件
+- **封面 URL 缓存** - `coverUrlCache` (Map) 跨页面导航复用，覆盖前 `revokeObjectURL` 旧 URL 防内存泄漏
+- **流式文件传输** - 复制/移动使用 `file.stream().pipeTo(writable)`，避免一次性内存加载导致大批量操作失败
+- **懒加载目录句柄** - 批量操作时逐个壁纸处理，仅在需要时加载 `folderHandle`
+- **搜索防抖** - 300ms 防抖避免过多异步句柄加载
 
 ## 部署
 

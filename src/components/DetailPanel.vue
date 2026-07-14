@@ -70,13 +70,29 @@
           </span>
         </div>
 
-        <div class="panel-actions">
-          <button v-if="protocolAvailable" class="action-btn" @click="$emit('openFolder')">
+        <div class="panel-actions panel-actions-auto">
+          <button v-if="protocolAvailable" class="action-btn primary" @click="setWallpaper">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M3 7a2 2 0 012-2h4l2 3h8a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
             </svg>
-            <span>打开目录</span>
+            <span>设为壁纸</span>
           </button>
+          <button v-if="protocolAvailable" class="action-btn" @click="$emit('addToPlaylist')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            <span>加入播放列表</span>
+          </button>
+          <button class="action-btn" @click="$emit('openInWorkshop')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+              <path d="M14 10V7a2 2 0 00-2-2H5"/>
+            </svg>
+            <span>在创意工坊打开</span>
+          </button>
+        </div>
+        <div class="panel-actions">
           <button class="action-btn" @click="$emit('copyPath')">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -92,19 +108,25 @@
             <span>复制名称</span>
           </button>
         </div>
-        <div class="panel-actions" v-if="protocolAvailable">
-          <button class="action-btn primary" @click="setWallpaper">
+        <div class="panel-actions">
+          <button v-if="protocolAvailable" class="action-btn" @click="$emit('openFolder')">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              <path d="M3 7a2 2 0 012-2h4l2 3h8a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
             </svg>
-            <span>设为壁纸</span>
+            <span>打开目录</span>
           </button>
-          <button class="action-btn" @click="$emit('addToPlaylist')">
+          <button class="action-btn" @click="$emit('copyWallpaper')">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-              <line x1="12" y1="5" x2="12" y2="19"/>
-              <line x1="5" y1="12" x2="19" y2="12"/>
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
             </svg>
-            <span>加入播放列表</span>
+            <span>复制壁纸</span>
+          </button>
+          <button class="action-btn" @click="$emit('moveWallpaper')">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+            </svg>
+            <span>移动壁纸</span>
           </button>
         </div>
 
@@ -134,8 +156,8 @@
               v-for="item in currentFiles"
               :key="item.name"
               class="file-item"
-              :class="{ 'is-directory': item.kind === 'directory' }"
-              @click="handleFileClick(item)"
+              :class="{ 'is-directory': item.kind === 'directory', 'is-selected': selectedFiles.has(item.name) }"
+              @click="handleFileClick($event, item)"
               @dblclick="handleFileDoubleClick(item)"
               @pointerdown="onPointerDown($event, item)"
               @pointerup="onPointerUp"
@@ -187,6 +209,21 @@
           </svg>
           <span>复制文件路径</span>
         </button>
+        <div class="context-divider"></div>
+        <button class="context-item" @click="copySelectedFiles">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+          </svg>
+          <span>复制{{ selectedFiles.size > 1 ? `(${selectedFiles.size})` : '' }}</span>
+        </button>
+        <button class="context-item" @click="moveSelectedFiles">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+          </svg>
+          <span>移动{{ selectedFiles.size > 1 ? `(${selectedFiles.size})` : '' }}</span>
+        </button>
+        <div class="context-divider"></div>
         <button v-if="canPreview(fileContextMenu.item)" class="context-item" @click="previewFile">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -402,10 +439,13 @@ const emit = defineEmits<{
   setWallpaper: []
   addToPlaylist: []
   openFolder: [subPath?: string]
+  openInWorkshop: []
   previewFile: [file: FileSystemFileHandle]
   keepToast: []
   releaseToast: []
   showToast: [message: string]
+  copyWallpaper: []
+  moveWallpaper: []
 }>()
 
 interface FileSystemItem {
@@ -420,6 +460,8 @@ const currentPath = ref<string[]>(['壁纸目录'])
 const currentFiles = ref<FileSystemItem[]>([])
 const currentDirHandle = ref<FileSystemDirectoryHandle | null>(null)
 const dirHandleStack = ref<FileSystemDirectoryHandle[]>([])
+const selectedFiles = ref<Set<string>>(new Set())
+const lastSelectedIndex = ref(-1)
 
 function togglePanel() {
   isExpanded.value = !isExpanded.value
@@ -507,15 +549,37 @@ async function loadFiles(dirHandle: FileSystemDirectoryHandle) {
   currentFiles.value = items
 }
 
-function handleFileClick(item: FileSystemItem) {
+function handleFileClick(e: MouseEvent, item: FileSystemItem) {
   expandPanel()
-  if (item.kind === 'directory') {
+  const currentIndex = currentFiles.value.findIndex(i => i.name === item.name)
+
+  if (e.shiftKey && lastSelectedIndex.value !== -1) {
+    const start = Math.min(lastSelectedIndex.value, currentIndex)
+    const end = Math.max(lastSelectedIndex.value, currentIndex)
+    selectedFiles.value.clear()
+    currentFiles.value.slice(start, end + 1).forEach(i => {
+      selectedFiles.value.add(i.name)
+    })
+  } else if (e.ctrlKey || e.metaKey) {
+    if (selectedFiles.value.has(item.name)) {
+      selectedFiles.value.delete(item.name)
+    } else {
+      selectedFiles.value.add(item.name)
+    }
+    lastSelectedIndex.value = currentIndex
+  } else if (item.kind === 'directory') {
+    selectedFiles.value.clear()
+    lastSelectedIndex.value = -1
     const dirHandle = item.handle as FileSystemDirectoryHandle
     if (currentDirHandle.value) {
       dirHandleStack.value.push(currentDirHandle.value)
     }
     currentPath.value.push(item.name)
     loadFiles(dirHandle)
+  } else {
+    selectedFiles.value.clear()
+    selectedFiles.value.add(item.name)
+    lastSelectedIndex.value = currentIndex
   }
 }
 
@@ -529,6 +593,8 @@ function handleFileDoubleClick(item: FileSystemItem) {
 function navigateUp() {
   if (currentPath.value.length <= 1) return
   currentPath.value.pop()
+  selectedFiles.value.clear()
+  lastSelectedIndex.value = -1
   if (currentPath.value.length === 1 && props.wallpaper?.folderHandle) {
     dirHandleStack.value = []
     loadFiles(props.wallpaper.folderHandle)
@@ -619,16 +685,21 @@ function showFileContextMenuAt(x: number, y: number, item: FileSystemItem) {
     if (menuEl) {
       const rect = menuEl.getBoundingClientRect()
       if (rect.right > window.innerWidth) {
-        fileContextMenu.x = x - rect.width
+        fileContextMenu.x = Math.max(0, x - rect.width)
       }
       if (rect.bottom > window.innerHeight) {
-        fileContextMenu.y = y - rect.height
+        fileContextMenu.y = Math.max(0, y - rect.height)
       }
     }
   })
 }
 
 function showFileContextMenu(e: MouseEvent, item: FileSystemItem) {
+  if (!selectedFiles.value.has(item.name)) {
+    selectedFiles.value.clear()
+    selectedFiles.value.add(item.name)
+    lastSelectedIndex.value = currentFiles.value.findIndex(i => i.name === item.name)
+  }
   showFileContextMenuAt(e.clientX, e.clientY, item)
 }
 
@@ -670,12 +741,137 @@ function openFileFolder() {
   fileContextMenu.visible = false
 }
 
+async function copyFile(fileHandle: FileSystemFileHandle, targetDir: FileSystemDirectoryHandle, fileName: string) {
+  const file = await fileHandle.getFile()
+  const targetHandle = await targetDir.getFileHandle(fileName, { create: true })
+  const writable = await targetHandle.createWritable()
+  try {
+    await file.stream().pipeTo(writable)
+  } catch (err) {
+    try { await writable.close() } catch { /* ignore */ }
+    throw err
+  }
+}
+
+async function copyDirectoryRecursive(sourceDir: FileSystemDirectoryHandle, targetDir: FileSystemDirectoryHandle, dirName: string) {
+  const newDir = await targetDir.getDirectoryHandle(dirName, { create: true })
+  for await (const [name, handle] of sourceDir.entries()) {
+    if (handle.kind === 'file') {
+      await copyFile(handle as FileSystemFileHandle, newDir, name)
+    } else if (handle.kind === 'directory') {
+      await copyDirectoryRecursive(handle as FileSystemDirectoryHandle, newDir, name)
+    }
+  }
+}
+
+async function copySelectedFiles() {
+  if (selectedFiles.value.size === 0) {
+    fileContextMenu.visible = false
+    return
+  }
+  try {
+    const targetDir = await window.showDirectoryPicker({ mode: 'readwrite' })
+    const selectedItems = currentFiles.value.filter(i => selectedFiles.value.has(i.name))
+    let successCount = 0
+    let failedItem = ''
+
+    for (const item of selectedItems) {
+      try {
+        if (item.kind === 'directory') {
+          await copyDirectoryRecursive(
+            item.handle as FileSystemDirectoryHandle,
+            targetDir,
+            item.name
+          )
+        } else {
+          await copyFile(item.handle as FileSystemFileHandle, targetDir, item.name)
+        }
+        successCount++
+      } catch (err) {
+        failedItem = item.name
+        throw err
+      }
+    }
+
+    emit('showToast', `已复制 ${successCount} 个文件/目录`)
+  } catch (err) {
+    if ((err as Error).name !== 'AbortError') {
+      const msg = (err as Error).message || (err as Error).name || '未知错误'
+      emit('showToast', `复制失败: ${msg}`)
+    }
+  } finally {
+    fileContextMenu.visible = false
+  }
+}
+
+async function deleteEntry(parentDir: FileSystemDirectoryHandle, name: string, kind: 'file' | 'directory') {
+  if (kind === 'directory') {
+    await parentDir.removeEntry(name, { recursive: true })
+  } else {
+    await parentDir.removeEntry(name)
+  }
+}
+
+async function moveSelectedFiles() {
+  if (selectedFiles.value.size === 0 || !currentDirHandle.value) {
+    fileContextMenu.visible = false
+    return
+  }
+  try {
+    const targetDir = await window.showDirectoryPicker({ mode: 'readwrite' })
+    const selectedItems = currentFiles.value.filter(i => selectedFiles.value.has(i.name))
+    const copiedItems: FileSystemItem[] = []
+
+    for (const item of selectedItems) {
+      try {
+        if (item.kind === 'directory') {
+          await copyDirectoryRecursive(
+            item.handle as FileSystemDirectoryHandle,
+            targetDir,
+            item.name
+          )
+        } else {
+          await copyFile(item.handle as FileSystemFileHandle, targetDir, item.name)
+        }
+        copiedItems.push(item)
+      } catch (err) {
+        const msg = (err as Error).message || (err as Error).name || '未知错误'
+        emit('showToast', `移动失败: ${item.name} - ${msg}`)
+        throw err
+      }
+    }
+
+    for (const item of copiedItems) {
+      try {
+        await deleteEntry(currentDirHandle.value!, item.name, item.kind)
+      } catch {
+        // 删除失败不影响整体结果，文件已复制成功
+      }
+    }
+
+    selectedFiles.value.clear()
+    lastSelectedIndex.value = -1
+    await loadFiles(currentDirHandle.value!)
+
+    emit('showToast', `已移动 ${copiedItems.length} 个文件/目录`)
+  } catch (err) {
+    if ((err as Error).name !== 'AbortError') {
+      const msg = (err as Error).message || (err as Error).name || '未知错误'
+      emit('showToast', `移动失败: ${msg}`)
+    }
+  } finally {
+    fileContextMenu.visible = false
+  }
+}
+
 function onDocumentClick() {
   fileContextMenu.visible = false
 }
 
 watch(() => props.wallpaper, (newWallpaper) => {
   dirHandleStack.value = []
+  selectedFiles.value.clear()
+  lastSelectedIndex.value = -1
   if (newWallpaper?.folderHandle) {
     currentPath.value = ['壁纸目录']
     loadFiles(newWallpaper.folderHandle)
@@ -686,12 +882,20 @@ watch(() => props.wallpaper, (newWallpaper) => {
   }
 }, { immediate: true })
 
+// folderHandle 异步加载后重新加载文件列表
+watch(() => props.wallpaper?.folderHandle, (newHandle, oldHandle) => {
+  if (newHandle && !oldHandle && props.wallpaper) {
+    currentPath.value = ['壁纸目录']
+    loadFiles(newHandle)
+  }
+})
+
 onMounted(() => document.addEventListener('click', onDocumentClick))
 onUnmounted(() => document.removeEventListener('click', onDocumentClick))
 
 function onImageError(e: Event) {
   const img = e.target as HTMLImageElement
-  img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250" fill="%23f2f2f2"><rect width="400" height="250"/><text x="200" y="130" text-anchor="middle" fill="%238a8a8a" font-size="16" font-family="sans-serif">无封面</text></svg>')
+  img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250" fill="#f2f2f2"><rect width="400" height="250"/><text x="200" y="130" text-anchor="middle" fill="#8a8a8a" font-size="16" font-family="sans-serif">无封面</text></svg>')
 }
 </script>
 
@@ -878,6 +1082,12 @@ function onImageError(e: Event) {
   display: flex;
   gap: 5px;
   margin-bottom: 6px;
+
+  &.panel-actions-auto {
+    .action-btn {
+      flex: auto;
+    }
+  }
 }
 
 .action-btn {
@@ -996,6 +1206,7 @@ function onImageError(e: Event) {
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
+  border: 1px solid transparent;
 
   &:hover {
     background: var(--bg-hover);
@@ -1003,6 +1214,15 @@ function onImageError(e: Event) {
 
   &.is-directory {
     font-weight: 500;
+  }
+
+  &.is-selected {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: rgba(59, 130, 246, 0.4);
+
+    &:hover {
+      background: rgba(59, 130, 246, 0.2);
+    }
   }
 }
 

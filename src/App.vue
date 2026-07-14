@@ -89,20 +89,50 @@
         </div>
 
         <button v-if="state.rootDirName && !state.loadingMore && state.loadedCount >= state.totalSubdirs" class="top-refresh-btn" @click="handleRefresh" title="检查新增和删除的壁纸">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0118.8-4.3M22 12.5a10 10 0 01-18.8 4.2"/>
-          </svg>
-        </button>
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0118.8-4.3M22 12.5a10 10 0 01-18.8 4.2"/>
+            </svg>
+          </button>
 
-        <div v-if="state.rootDirName && (state.loadingMore || state.loadedCount < state.totalSubdirs)" class="top-bar-loading">
-          <svg class="loading-spinner" viewBox="0 0 20 20" width="13" height="13" fill="none">
-            <circle cx="10" cy="10" r="8" stroke="var(--text-muted)" stroke-width="2" opacity="0.15"/>
-            <circle cx="10" cy="10" r="8" stroke="var(--accent)" stroke-width="2" stroke-dasharray="35" stroke-linecap="round" class="spinner-arc"/>
-          </svg>
-          <span>{{ state.loadedCount }} / {{ state.totalSubdirs }}</span>
-        </div>
+          <div v-if="state.rootDirName && (state.loadingMore || state.loadedCount < state.totalSubdirs)" class="top-bar-loading">
+            <svg class="loading-spinner" viewBox="0 0 20 20" width="13" height="13" fill="none">
+              <circle cx="10" cy="10" r="8" stroke="var(--text-muted)" stroke-width="2" opacity="0.15"/>
+              <circle cx="10" cy="10" r="8" stroke="var(--accent)" stroke-width="2" stroke-dasharray="35" stroke-linecap="round" class="spinner-arc"/>
+            </svg>
+            <span>{{ state.loadedCount }} / {{ state.totalSubdirs }}</span>
+          </div>
 
-      </header>
+          <div v-if="selectedWallpapers.size > 0" class="batch-actions">
+            <button v-if="pagedWallpapers.some(wp => !selectedWallpapers.has(wp.id))" class="batch-btn" @click="selectAll">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <path d="M9 12l2 2 4-4"/>
+              </svg>
+              <span>全选</span>
+            </button>
+            <button class="batch-btn" @click="clearSelection">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+              <span>取消全选</span>
+            </button>
+            <div class="batch-divider"></div>
+            <button class="batch-btn batch-btn-primary" @click="initiateBatchCopy">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+              </svg>
+              <span>复制 ({{ selectedWallpapers.size }})</span>
+            </button>
+            <button class="batch-btn batch-btn-primary" @click="initiateBatchMove">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+              </svg>
+              <span>移动 ({{ selectedWallpapers.size }})</span>
+            </button>
+          </div>
+
+        </header>
 
       <div v-if="state.rootDirName && !state.protocolAvailable" class="protocol-banner">
         <svg class="protocol-banner-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
@@ -144,8 +174,10 @@
               :key="wallpaper.id"
               :wallpaper="wallpaper"
               :selected="selectedWallpaper?.id === wallpaper.id"
+              :batch-selected="selectedWallpapers.has(wallpaper.id)"
               @select="selectWallpaper"
               @preview="previewWallpaper"
+              @batch-toggle="handleBatchToggle"
               @contextmenu.prevent="onContextMenu($event, wallpaper)"
             />
           </div>
@@ -258,10 +290,13 @@
       @set-wallpaper="setWallpaperFromDetail"
       @add-to-playlist="addToPlaylistFromDetail"
       @open-folder="openFolderFromDetail"
+      @open-in-workshop="openInWorkshopFromDetail"
       @preview-file="previewFile"
       @keep-toast="keepToast"
       @release-toast="releaseToast"
       @show-toast="showToast"
+      @copy-wallpaper="copyWallpaperFromDetail"
+      @move-wallpaper="moveWallpaperFromDetail"
     />
 
     <PreviewModal
@@ -269,6 +304,31 @@
       :wallpaper="previewingWallpaper"
       :file="previewingFile"
       @close="previewVisible = false"
+    />
+
+    <CopyMoveDialog
+      :visible="copyMoveState.visible"
+      :mode="copyMoveState.mode"
+      :wallpaper-name="copyMoveState.wallpaper?.folderName || ''"
+      :target-dir-name="copyMoveState.targetDirName"
+      :target-dir-handle="copyMoveState.targetDirHandle"
+      :processing="copyMoveState.processing"
+      :progress="copyMoveState.progress"
+      @confirm="confirmCopyMove"
+      @cancel="cancelCopyMove"
+      @change-directory="changeCopyMoveDirectory"
+    />
+
+    <BatchCopyMoveDialog
+      :visible="batchCopyMoveState.visible"
+      :mode="batchCopyMoveState.mode"
+      :wallpapers="batchCopyMoveState.wallpapers"
+      :default-target-dir-name="batchCopyMoveState.targetDirName"
+      :default-target-dir-handle="batchCopyMoveState.targetDirHandle"
+      :processing="batchCopyMoveState.processing"
+      :progress="batchCopyMoveState.progress"
+      @confirm="confirmBatchCopyMove"
+      @cancel="cancelBatchCopyMove"
     />
 
     <Teleport to="body">
@@ -298,12 +358,14 @@
           </svg>
           <span>加入播放列表</span>
         </button>
-        <button v-if="state.protocolAvailable" class="context-item" @click="openFolder">
+        <button class="context-item" @click="openInWorkshop">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M3 7a2 2 0 012-2h4l2 3h8a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+            <path d="M14 10V7a2 2 0 00-2-2H5"/>
           </svg>
-          <span>打开本地目录</span>
+          <span>在创意工坊打开</span>
         </button>
+        <div class="context-divider"></div>
         <button class="context-item" @click="copyWallpaperPath">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="9" y="9" width="13" height="13" rx="2"/>
@@ -318,12 +380,25 @@
           </svg>
           <span>复制文件夹名称</span>
         </button>
-        <button class="context-item" @click="openInWorkshop">
+        <div class="context-divider"></div>
+        <button v-if="state.protocolAvailable" class="context-item" @click="openFolder">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
-            <path d="M14 10V7a2 2 0 00-2-2H5"/>
+            <path d="M3 7a2 2 0 012-2h4l2 3h8a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
           </svg>
-          <span>在创意工坊打开</span>
+          <span>打开本地目录</span>
+        </button>
+        <button class="context-item" @click="copyWallpaperFromContext">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2"/>
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+          </svg>
+          <span>复制壁纸</span>
+        </button>
+        <button class="context-item" @click="moveWallpaperFromContext">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/>
+          </svg>
+          <span>移动壁纸</span>
         </button>
       </div>
     </Teleport>
@@ -343,12 +418,14 @@
 
 <script setup lang="ts">
 import { ref, computed, reactive, onMounted, onUnmounted, watch } from 'vue'
-import { useWallpaperStore, restoreSavedDirectory, forceRefresh, loadPageHandles } from './utils/wallpaperScanner'
+import { useWallpaperStore, restoreSavedDirectory, forceRefresh, loadPageHandles, purgeWallpaper } from './utils/wallpaperScanner'
 import type { WallpaperItem, SortKey, WallpaperType } from './utils/wallpaperScanner'
 import Sidebar from './components/Sidebar.vue'
 import WallpaperCard from './components/WallpaperCard.vue'
 import DetailPanel from './components/DetailPanel.vue'
 import PreviewModal from './components/PreviewModal.vue'
+import CopyMoveDialog from './components/CopyMoveDialog.vue'
+import BatchCopyMoveDialog from './components/BatchCopyMoveDialog.vue'
 
 const {
   state,
@@ -367,6 +444,7 @@ const {
 const typeCounts = computed(() => getTypeCounts())
 
 const selectedWallpaper = ref<WallpaperItem | null>(null)
+const selectedWallpapers = ref<Set<string>>(new Set())
 const isMobile = ref(window.innerWidth <= 768)
 const sidebarCollapsed = ref(isMobile.value)
 
@@ -573,6 +651,121 @@ const contextMenu = reactive({
   wallpaper: null as WallpaperItem | null
 })
 
+function handleBatchToggle(wallpaper: WallpaperItem) {
+  if (selectedWallpapers.value.has(wallpaper.id)) {
+    selectedWallpapers.value.delete(wallpaper.id)
+  } else {
+    selectedWallpapers.value.add(wallpaper.id)
+  }
+}
+
+function selectAll() {
+  for (const wp of filteredAndSorted.value) {
+    selectedWallpapers.value.add(wp.id)
+  }
+}
+
+function clearSelection() {
+  selectedWallpapers.value.clear()
+}
+
+const batchCopyMoveState = reactive({
+  visible: false,
+  mode: 'copy' as 'copy' | 'move',
+  wallpapers: [] as WallpaperItem[],
+  targetDirHandle: null as FileSystemDirectoryHandle | null,
+  targetDirName: '',
+  processing: false,
+  progress: { current: 0, total: 0 }
+})
+
+async function initiateBatchCopy() {
+  await initiateBatchOperation('copy')
+}
+
+async function initiateBatchMove() {
+  await initiateBatchOperation('move')
+}
+
+async function initiateBatchOperation(mode: 'copy' | 'move') {
+  const wps: WallpaperItem[] = []
+  for (const id of selectedWallpapers.value) {
+    const wp = state.wallpapers.find(w => w.id === id)
+    if (wp) wps.push(wp)
+  }
+  if (wps.length === 0) return
+
+  try {
+    const handle = await window.showDirectoryPicker({ mode: 'readwrite' })
+    batchCopyMoveState.targetDirHandle = handle
+    batchCopyMoveState.targetDirName = handle.name
+    batchCopyMoveState.mode = mode
+    batchCopyMoveState.wallpapers = wps
+    batchCopyMoveState.visible = true
+  } catch {
+    showToast('未选择目录')
+  }
+}
+
+function cancelBatchCopyMove() {
+  batchCopyMoveState.visible = false
+}
+
+async function confirmBatchCopyMove(items: { wallpaper: WallpaperItem; dirName: string; conflictMode: 'replace' | 'merge'; targetDirHandle: FileSystemDirectoryHandle }[]) {
+  batchCopyMoveState.processing = true
+  batchCopyMoveState.progress = { current: 0, total: items.length }
+
+  try {
+    for (const item of items) {
+      const { wallpaper, dirName, conflictMode, targetDirHandle } = item
+
+      if (!wallpaper.folderHandle) {
+        await loadPageHandles([wallpaper.folderName])
+        const wp = state.wallpapers.find(w => w.folderName === wallpaper.folderName)
+        if (wp?.folderHandle) {
+          wallpaper.folderHandle = wp.folderHandle
+        }
+      }
+
+      if (!wallpaper.folderHandle) {
+        throw new Error(`无法获取 "${wallpaper.name}" 的目录句柄`)
+      }
+
+      let newDir: FileSystemDirectoryHandle
+
+      if (conflictMode === 'replace') {
+        try {
+          await targetDirHandle.removeEntry(dirName, { recursive: true })
+        } catch {}
+        newDir = await targetDirHandle.getDirectoryHandle(dirName, { create: true })
+      } else {
+        newDir = await targetDirHandle.getDirectoryHandle(dirName, { create: true })
+      }
+
+      const counter = { current: 0 }
+      await copyDirectoryRecursive(wallpaper.folderHandle, newDir, counter)
+
+      if (batchCopyMoveState.mode === 'move') {
+        await removeDirectoryContents(wallpaper.folderHandle)
+        await purgeWallpaper(wallpaper.folderName)
+      }
+
+      batchCopyMoveState.progress.current++
+    }
+
+    selectedWallpapers.value.clear()
+    selectedWallpaper.value = null
+    await loadCurrentPageHandles()
+    showToast(batchCopyMoveState.mode === 'copy' ? `已复制 ${items.length} 个壁纸` : `已移动 ${items.length} 个壁纸`)
+    batchCopyMoveState.visible = false
+  } catch (err) {
+    const msg = (err as Error).message || (err as Error).name || '未知错误'
+    showToast(`${batchCopyMoveState.mode === 'copy' ? '复制失败' : '移动失败'}: ${msg}`)
+  } finally {
+    batchCopyMoveState.processing = false
+  }
+}
+
 function onContextMenu(e: MouseEvent, wallpaper: WallpaperItem) {
   e.preventDefault()
   contextMenu.visible = true
@@ -585,10 +778,10 @@ function onContextMenu(e: MouseEvent, wallpaper: WallpaperItem) {
     if (menuEl) {
       const rect = menuEl.getBoundingClientRect()
       if (rect.right > window.innerWidth) {
-        contextMenu.x = e.clientX - rect.width
+        contextMenu.x = Math.max(0, e.clientX - rect.width)
       }
       if (rect.bottom > window.innerHeight) {
-        contextMenu.y = e.clientY - rect.height
+        contextMenu.y = Math.max(0, e.clientY - rect.height)
       }
     }
   })
@@ -755,6 +948,188 @@ function openInWorkshop() {
   if (!contextMenu.wallpaper) return
   const wp = contextMenu.wallpaper
   const workshopId = wp.workshopId || wp.folderName
-  window.open(`https://steamcommunity.com/sharedfiles/filedetails/?id=${workshopId}`, '_blank')
+  // 唤起 Steam 客户端（跟 Wallpaper Engine 官方一致）
+  window.location.href = `steam://url/CommunityFilePage/${workshopId}`
+}
+
+function openInWorkshopFromDetail() {
+  if (!selectedWallpaper.value) return
+  const wp = selectedWallpaper.value
+  const workshopId = wp.workshopId || wp.folderName
+  window.location.href = `steam://url/CommunityFilePage/${workshopId}`
+}
+
+// ---- 复制/移动壁纸 ----
+const copyMoveState = reactive({
+  visible: false,
+  mode: 'copy' as 'copy' | 'move',
+  wallpaper: null as WallpaperItem | null,
+  targetDirHandle: null as FileSystemDirectoryHandle | null,
+  targetDirName: '',
+  processing: false,
+  progress: { current: 0, total: 0 }
+})
+
+async function initiateCopyMove(mode: 'copy' | 'move', wallpaper: WallpaperItem) {
+  copyMoveState.mode = mode
+  copyMoveState.wallpaper = wallpaper
+  contextMenu.visible = false
+
+  if (!copyMoveState.targetDirHandle) {
+    try {
+      const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
+      copyMoveState.targetDirHandle = handle
+      copyMoveState.targetDirName = handle.name
+    } catch {
+      return
+    }
+  }
+
+  copyMoveState.visible = true
+}
+
+async function changeCopyMoveDirectory() {
+  try {
+    const handle = await (window as any).showDirectoryPicker({ mode: 'readwrite' })
+    copyMoveState.targetDirHandle = handle
+    copyMoveState.targetDirName = handle.name
+  } catch {
+    // 用户取消
+  }
+}
+
+async function confirmCopyMove(dirName: string, conflictMode: 'replace' | 'merge' | 'none') {
+  const wp = copyMoveState.wallpaper
+  const target = copyMoveState.targetDirHandle
+  if (!wp || !target || !dirName.trim()) return
+
+  copyMoveState.processing = true
+  copyMoveState.progress = { current: 0, total: 0 }
+
+  try {
+    if (!wp.folderHandle) {
+      await loadPageHandles([wp.folderName])
+      const freshWp = state.wallpapers.find(w => w.folderName === wp.folderName)
+      if (freshWp?.folderHandle) {
+        wp.folderHandle = freshWp.folderHandle
+      }
+    }
+
+    if (!wp.folderHandle) {
+      throw new Error('无法获取目录句柄')
+    }
+
+    let newDir: FileSystemDirectoryHandle
+    if (conflictMode === 'replace') {
+      try {
+        await target.removeEntry(dirName, { recursive: true })
+      } catch {
+        // 目标不存在，忽略
+      }
+      newDir = await target.getDirectoryHandle(dirName, { create: true })
+    } else {
+      newDir = await target.getDirectoryHandle(dirName, { create: true })
+    }
+
+    const total = await countFiles(wp.folderHandle)
+    copyMoveState.progress.total = total
+
+    const counter = { current: 0 }
+    await copyDirectoryRecursive(wp.folderHandle, newDir, counter)
+
+    if (copyMoveState.mode === 'move') {
+      await removeDirectoryContents(wp.folderHandle)
+      showToast('壁纸已移动')
+      const folderName = wp.folderName
+      selectedWallpaper.value = null
+      await purgeWallpaper(folderName)
+      await loadCurrentPageHandles()
+    } else {
+      showToast('壁纸已复制')
+    }
+
+    copyMoveState.visible = false
+  } catch (err) {
+    const msg = (err as Error).message || (err as Error).name || '未知错误'
+    showToast(`${copyMoveState.mode === 'copy' ? '复制失败' : '移动失败'}: ${msg}`)
+  } finally {
+    copyMoveState.processing = false
+  }
+}
+
+function cancelCopyMove() {
+  if (copyMoveState.processing) return
+  copyMoveState.visible = false
+}
+
+async function countFiles(dir: FileSystemDirectoryHandle): Promise<number> {
+  let total = 0
+  for await (const [, handle] of dir.entries()) {
+    if (handle.kind === 'file') {
+      total++
+    } else {
+      total += await countFiles(handle as FileSystemDirectoryHandle)
+    }
+  }
+  return total
+}
+
+async function copyDirectoryRecursive(
+  source: FileSystemDirectoryHandle,
+  target: FileSystemDirectoryHandle,
+  counter: { current: number }
+): Promise<void> {
+  for await (const [name, handle] of source.entries()) {
+    if (handle.kind === 'file') {
+      const file = await (handle as FileSystemFileHandle).getFile()
+      const newFileHandle = await target.getFileHandle(name, { create: true })
+      const writable = await newFileHandle.createWritable()
+      try {
+        await file.stream().pipeTo(writable)
+      } catch (err) {
+        try { await writable.close() } catch { /* ignore */ }
+        throw err
+      }
+      counter.current++
+      if (copyMoveState.processing) {
+        copyMoveState.progress.current = counter.current
+      } else if (batchCopyMoveState.processing) {
+        batchCopyMoveState.progress.current = counter.current
+      }
+    } else {
+      const newDirHandle = await target.getDirectoryHandle(name, { create: true })
+      await copyDirectoryRecursive(handle as FileSystemDirectoryHandle, newDirHandle, counter)
+    }
+  }
+}
+
+async function removeDirectoryContents(dir: FileSystemDirectoryHandle): Promise<void> {
+  const entries: string[] = []
+  for await (const [name] of dir.entries()) {
+    entries.push(name)
+  }
+  for (const name of entries) {
+    await dir.removeEntry(name, { recursive: true })
+  }
+}
+
+function copyWallpaperFromContext() {
+  if (!contextMenu.wallpaper) return
+  initiateCopyMove('copy', contextMenu.wallpaper)
+}
+
+function moveWallpaperFromContext() {
+  if (!contextMenu.wallpaper) return
+  initiateCopyMove('move', contextMenu.wallpaper)
+}
+
+function copyWallpaperFromDetail() {
+  if (!selectedWallpaper.value) return
+  initiateCopyMove('copy', selectedWallpaper.value)
+}
+
+function moveWallpaperFromDetail() {
+  if (!selectedWallpaper.value) return
+  initiateCopyMove('move', selectedWallpaper.value)
 }
 </script>

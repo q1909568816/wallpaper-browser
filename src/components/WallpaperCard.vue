@@ -1,5 +1,5 @@
 <template>
-  <div class="wallpaper-card" ref="cardRef" :class="{ selected: selected }" @click="handleClick" @dblclick="handleDoubleClick" @pointerdown="onPointerDown" @pointerup="onPointerUp">
+  <div class="wallpaper-card" ref="cardRef" :class="{ selected: selected, 'batch-selected': batchSelected }" @click="handleClick" @dblclick="handleDoubleClick" @pointerdown="onPointerDown" @pointerup="onPointerUp">
     <div class="card-cover">
       <img
         :src="wallpaper.coverUrl"
@@ -10,11 +10,14 @@
       <div class="card-category" v-if="wallpaper.category !== '其他'">
         {{ wallpaper.category }}
       </div>
-      <div class="card-check" v-if="selected">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="var(--accent)" stroke="white" stroke-width="2">
+      <button class="card-check" @click.stop="handleBatchToggle" :class="{ checked: batchSelected }" :title="batchSelected ? '取消选中' : '批量选择'">
+        <svg v-if="batchSelected" viewBox="0 0 24 24" width="16" height="16" fill="var(--accent)" stroke="white" stroke-width="2">
           <path d="M20 6L9 17l-5-5"/>
         </svg>
-      </div>
+        <svg v-else viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="white" stroke-width="2">
+          <rect x="4" y="4" width="16" height="16" rx="3"/>
+        </svg>
+      </button>
       <button class="card-preview-btn" @click.stop="handlePreview" title="预览">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -53,11 +56,13 @@ import { cacheThumbnail, getCachedThumbnail } from '../utils/cache'
 const props = defineProps<{
   wallpaper: WallpaperItem
   selected: boolean
+  batchSelected: boolean
 }>()
 
 const emit = defineEmits<{
   select: [wallpaper: WallpaperItem]
   preview: [wallpaper: WallpaperItem]
+  batchToggle: [wallpaper: WallpaperItem]
 }>()
 
 const showFiles = ref(false)
@@ -137,6 +142,10 @@ function handleClick() {
   emit('select', props.wallpaper)
 }
 
+function handleBatchToggle() {
+  emit('batchToggle', props.wallpaper)
+}
+
 function handleDoubleClick() {
   emit('preview', props.wallpaper)
 }
@@ -148,7 +157,9 @@ function handlePreview() {
 const DOUBLE_TAP_DURATION = 300
 let lastTapTime = 0
 
-function onPointerDown() {
+function onPointerDown(event: PointerEvent) {
+  // 只处理触摸操作，鼠标双击由 @dblclick 处理
+  if (event.pointerType === 'mouse') return
   const now = Date.now()
   if (now - lastTapTime < DOUBLE_TAP_DURATION) {
     emit('preview', props.wallpaper)
@@ -163,7 +174,7 @@ function onPointerUp() {
 
 function onImageError(e: Event) {
   const img = e.target as HTMLImageElement
-  img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250" fill="%23f2f2f2"><rect width="400" height="250"/><text x="200" y="130" text-anchor="middle" fill="%238a8a8a" font-size="16" font-family="sans-serif">无封面</text></svg>')
+  img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250" fill="#f2f2f2"><rect width="400" height="250"/><text x="200" y="130" text-anchor="middle" fill="#8a8a8a" font-size="16" font-family="sans-serif">无封面</text></svg>')
 }
 </script>
 
@@ -198,11 +209,6 @@ function onImageError(e: Event) {
   &.selected {
     border-color: var(--accent);
     box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.2);
-
-    .card-preview-btn {
-      right: 30px;
-      opacity: 1;
-    }
   }
 }
 
@@ -245,21 +251,40 @@ function onImageError(e: Event) {
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 120, 212, 0.95);
-  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
   backdrop-filter: blur(4px);
-  color: #ffffff;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 0.2s ease, background 0.15s ease;
+  z-index: 5;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  &.checked {
+    background: rgba(0, 120, 212, 0.95);
+    border-color: var(--accent);
+    opacity: 1;
+  }
+}
+
+.wallpaper-card:hover .card-check {
+  opacity: 1;
 }
 
 .card-preview-btn {
   position: absolute;
   top: 4px;
-  right: 4px;
+  right: 34px;
   width: 26px;
   height: 26px;
   display: flex;
@@ -379,7 +404,7 @@ function onImageError(e: Event) {
   white-space: nowrap;
 }
 
-// Mobile - always show preview button
+// Mobile - always show preview button and check button
 @media (max-width: 768px) {
   .card-preview-btn {
     opacity: 1;
@@ -387,9 +412,19 @@ function onImageError(e: Event) {
     height: 28px;
   }
 
+  .card-check {
+    opacity: 1;
+    width: 28px;
+    height: 28px;
+  }
+
   .wallpaper-card {
     &.selected .card-preview-btn {
-      right: 32px;
+      right: 36px;
+    }
+
+    &.selected .card-check {
+      opacity: 1;
     }
 
     &:hover {

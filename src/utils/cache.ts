@@ -92,6 +92,7 @@ interface Settings {
 }
 
 let db: IDBDatabase | null = null
+let dbPromise: Promise<IDBDatabase> | null = null
 
 function createStoreIfNeeded(database: IDBDatabase, name: string) {
   if (!database.objectStoreNames.contains(name)) {
@@ -144,17 +145,22 @@ function needsUpgrade(database: IDBDatabase): boolean {
 
 async function openDB(): Promise<IDBDatabase> {
   if (db) return db
+  if (dbPromise) return dbPromise
 
-  return new Promise((resolve, reject) => {
+  dbPromise = new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME)
 
-    request.onerror = () => reject(request.error)
+    request.onerror = () => {
+      dbPromise = null
+      reject(request.error)
+    }
 
     request.onsuccess = () => {
       const database = request.result
 
       if (!needsUpgrade(database)) {
         db = database
+        dbPromise = null
         resolve(db)
         return
       }
@@ -164,7 +170,10 @@ async function openDB(): Promise<IDBDatabase> {
 
       const upgradeRequest = indexedDB.open(DB_NAME, newVersion)
 
-      upgradeRequest.onerror = () => reject(upgradeRequest.error)
+      upgradeRequest.onerror = () => {
+        dbPromise = null
+        reject(upgradeRequest.error)
+      }
 
       upgradeRequest.onupgradeneeded = (event) => {
         const dbToUpgrade = (event.target as IDBOpenDBRequest).result
@@ -185,6 +194,7 @@ async function openDB(): Promise<IDBDatabase> {
 
       upgradeRequest.onsuccess = () => {
         db = upgradeRequest.result
+        dbPromise = null
         resolve(db)
       }
     }
@@ -206,6 +216,8 @@ async function openDB(): Promise<IDBDatabase> {
       }
     }
   })
+
+  return dbPromise
 }
 
 export async function getCachedWallpapers(): Promise<CachedWallpaper[]> {
@@ -552,6 +564,19 @@ export async function clearThumbnails(): Promise<void> {
     return new Promise((resolve, reject) => {
       const tx = database.transaction([STORES.THUMBNAILS], 'readwrite')
       tx.objectStore(STORES.THUMBNAILS).clear()
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+  } catch {
+  }
+}
+
+export async function deleteThumbnail(folderName: string): Promise<void> {
+  try {
+    const database = await openDB()
+    return new Promise((resolve, reject) => {
+      const tx = database.transaction([STORES.THUMBNAILS], 'readwrite')
+      tx.objectStore(STORES.THUMBNAILS).delete(folderName)
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })

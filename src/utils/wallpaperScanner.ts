@@ -1,5 +1,5 @@
 import { reactive } from 'vue'
-import { getCachedWallpaper, cacheWallpapers, getCachedWallpapers, cacheDirectoryHandles, getCachedDirectoryHandles, deleteCachedWallpaper, deleteCachedDirectoryHandle, cacheSingleWallpaper, cacheSingleDirectoryHandle, setSetting, getSetting } from './cache'
+import { getCachedWallpaper, cacheWallpapers, getCachedWallpapers, cacheDirectoryHandles, getCachedDirectoryHandles, deleteCachedWallpaper, deleteCachedDirectoryHandle, cacheSingleWallpaper, cacheSingleDirectoryHandle, setSetting, getSetting, deleteThumbnail } from './cache'
 
 interface FilterState {
   selectedCategories: string[]
@@ -1433,6 +1433,10 @@ async function refreshWorkshopCache(): Promise<void> {
 }
 
 export function setCoverUrl(folderName: string, url: string): void {
+  const oldUrl = coverUrlCache.get(folderName)
+  if (oldUrl && oldUrl !== url) {
+    URL.revokeObjectURL(oldUrl)
+  }
   coverUrlCache.set(folderName, url)
 }
 
@@ -1446,6 +1450,22 @@ export function clearCoverUrl(folderName: string): void {
 
 export function getCoverUrl(folderName: string): string | undefined {
   return coverUrlCache.get(folderName)
+}
+
+export async function purgeWallpaper(folderName: string): Promise<void> {
+  state.wallpapers = state.wallpapers.filter(w => w.folderName !== folderName)
+  loadedDirNames.delete(folderName)
+  const idx = allSubdirs.findIndex(s => s.name === folderName)
+  if (idx !== -1) allSubdirs.splice(idx, 1)
+  state.totalSubdirs = allSubdirs.length
+  state.loadedCount = state.wallpapers.length
+  clearCoverUrl(folderName)
+  await deleteCachedWallpaper(folderName)
+  await deleteCachedDirectoryHandle(folderName)
+  await deleteThumbnail(folderName)
+  state.categories = buildCategories(state.wallpapers)
+  state.tags = buildTags(state.wallpapers)
+  state.contentRatings = buildContentRatings(state.wallpapers)
 }
 
 export function useWallpaperStore() {
