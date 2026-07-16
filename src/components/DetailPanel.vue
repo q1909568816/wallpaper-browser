@@ -21,21 +21,17 @@
           <span class="meta-type">{{ typeLabel }}</span>
         </div>
 
-        <div v-if="wallpaper.authorSteamId" class="panel-author-section" @click="$emit('openAuthor')" title="点击查看作者主页">
-          <div class="section-title">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
-            作者
-          </div>
-          <div class="author-info">
-            <span class="author-name">{{ wallpaper.authorName || '未知作者' }}</span>
-            <svg class="author-link-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
-              <path d="M15 3h6v6M10 14L21 3"/>
-            </svg>
-          </div>
+        <div v-if="wallpaper.authorSteamId" class="panel-author-inline" @click="$emit('openAuthor')" title="点击查看作者主页">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          <span class="author-label">作者</span>
+          <span class="author-name">{{ wallpaper.authorName || '未知作者' }}</span>
+          <svg class="author-link-icon" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/>
+            <path d="M15 3h6v6M10 14L21 3"/>
+          </svg>
         </div>
 
         <div class="panel-stats">
@@ -1064,52 +1060,62 @@ function onImageError(e: Event) {
   border-radius: 3px;
 }
 
-.panel-author-section {
-  margin-bottom: 20px;
-  cursor: pointer;
-}
-
-.author-info {
+.panel-author-inline {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  padding: 6px 10px;
-  background: var(--bg-hover-dark);
-  border-radius: 4px;
+  gap: 5px;
+  margin-bottom: 16px;
+  padding: 5px 10px;
   border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-hover-dark);
+  cursor: pointer;
   transition: all 0.15s ease;
+  font-size: 12px;
+  max-width: 100%;
+  min-width: 0;
 }
 
-.author-info:hover {
-  background: var(--bg-hover);
+.panel-author-inline:hover {
   border-color: var(--accent);
+  background: var(--bg-hover);
 }
 
-.author-name {
+.panel-author-inline svg:first-child {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.author-label {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.panel-author-inline .author-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-primary);
   font-weight: 500;
   transition: color 0.15s ease;
 }
 
-.author-info:hover .author-name {
+.panel-author-inline:hover .author-name {
   color: var(--accent);
 }
 
-.author-link-icon {
+.panel-author-inline .author-link-icon {
   flex-shrink: 0;
   color: var(--text-muted);
   opacity: 0.4;
   transition: all 0.15s ease;
 }
 
-.author-info:hover .author-link-icon {
+.panel-author-inline:hover .author-link-icon {
   color: var(--accent);
   opacity: 0.8;
 }
