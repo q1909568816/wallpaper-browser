@@ -1021,7 +1021,7 @@ function onImageError(e: Event) {
 }
 
 .panel-info {
-  padding: 20px;
+  padding: 14px 16px;
   flex: 1;
 }
 
@@ -1029,7 +1029,7 @@ function onImageError(e: Event) {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   line-height: 1.4;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1040,8 +1040,8 @@ function onImageError(e: Event) {
 
 .panel-meta {
   display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 .meta-category {
@@ -1064,8 +1064,8 @@ function onImageError(e: Event) {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-bottom: 16px;
-  padding: 5px 10px;
+  margin-bottom: 10px;
+  padding: 4px 8px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-hover-dark);
@@ -1122,8 +1122,8 @@ function onImageError(e: Event) {
 
 .panel-stats {
   display: flex;
-  gap: 24px;
-  margin-bottom: 16px;
+  gap: 20px;
+  margin-bottom: 10px;
 }
 
 .stat-item {
@@ -1148,28 +1148,28 @@ function onImageError(e: Event) {
 .panel-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 20px;
+  gap: 5px;
+  margin-bottom: 10px;
 }
 
 .tag-item {
   font-size: 11px;
   color: var(--text-secondary);
   background: rgba(0, 0, 0, 0.03);
-  padding: 3px 8px;
+  padding: 2px 6px;
   border-radius: 3px;
   border: 1px solid var(--border);
 }
 
 .panel-description {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .description-text {
   font-size: 12px;
   color: var(--text-secondary);
-  line-height: 1.6;
-  margin-top: 8px;
+  line-height: 1.5;
+  margin-top: 6px;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: anywhere;
@@ -1179,34 +1179,34 @@ function onImageError(e: Event) {
 }
 
 .panel-scheme-color {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 
 .scheme-color-preview {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-top: 8px;
+  gap: 8px;
+  margin-top: 6px;
 }
 
 .color-block {
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 3px;
   border: 1px solid var(--border);
   flex-shrink: 0;
 }
 
 .color-value {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
   font-family: monospace;
 }
 
 .panel-actions {
   display: flex;
-  gap: 5px;
-  margin-bottom: 6px;
+  gap: 4px;
+  margin-bottom: 4px;
 
   &.panel-actions-auto {
     .action-btn {
@@ -1250,19 +1250,19 @@ function onImageError(e: Event) {
 
 .file-section {
   border-top: 1px solid var(--border);
-  padding-top: 16px;
+  padding-top: 10px;
 }
 
 .section-title {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
+  gap: 5px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .file-count {
@@ -1466,7 +1466,7 @@ function onImageError(e: Event) {
   }
 
   .panel-content {
-    padding-top: 20px;
+    padding-top: 16px;
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -1477,7 +1477,7 @@ function onImageError(e: Event) {
   }
 
   .panel-info {
-    padding: 12px 16px;
+    padding: 10px 14px;
     flex: 1;
     min-height: 0;
     display: flex;
@@ -1487,12 +1487,20 @@ function onImageError(e: Event) {
 
   .panel-title {
     font-size: 15px;
+    margin-bottom: 6px;
+  }
+
+  .panel-meta {
+    margin-bottom: 8px;
+  }
+
+  .panel-author-inline {
     margin-bottom: 8px;
   }
 
   .panel-stats {
     gap: 16px;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
   .stat-value {
@@ -1500,15 +1508,19 @@ function onImageError(e: Event) {
   }
 
   .panel-tags {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
   .panel-description {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
+  }
+
+  .panel-scheme-color {
+    margin-bottom: 8px;
   }
 
   .action-btn {
-    padding: 8px;
+    padding: 6px;
     font-size: 12px;
   }
 
