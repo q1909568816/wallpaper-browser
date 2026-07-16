@@ -1099,13 +1099,8 @@ function onImageError(e: Event) {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 12px;
-  color: var(--text-primary);
+  color: var(--accent-dark);
   font-weight: 500;
-  transition: color 0.15s ease;
-}
-
-.panel-author-inline:hover .author-name {
-  color: var(--accent);
 }
 
 .panel-author-inline .author-link-icon {
