@@ -372,7 +372,8 @@
             <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
             <circle cx="12" cy="7" r="4"/>
           </svg>
-          <span>查看作者主页</span>
+          <span class="ctx-author-label">查看作者主页</span>
+          <span class="ctx-author-name" :title="contextMenu.wallpaper?.authorName">{{ contextMenu.wallpaper?.authorName || '未知作者' }}</span>
         </button>
         <div class="context-divider"></div>
         <button class="context-item" @click="copyWallpaperPath">
