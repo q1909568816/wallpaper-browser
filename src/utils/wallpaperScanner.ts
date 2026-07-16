@@ -92,6 +92,24 @@ export type SortKey = 'name' | 'date' | 'category'
 
 const PAGE_SIZE = 30
 
+const RATING_TRANSLATION: Record<string, string> = {
+  '大众级': '大众级',
+  '家长指导级': '家长指导级',
+  '限制级': '限制级',
+  'everyone': '大众级',
+  'e': '大众级',
+  'g': '大众级',
+  'teen': '家长指导级',
+  't': '家长指导级',
+  'pg-13': '家长指导级',
+  'questionable': '家长指导级',
+  'mature': '限制级',
+  'm': '限制级',
+  'r-18': '限制级',
+  'ao': '限制级',
+  'adults only': '限制级'
+}
+
 const coverUrlCache = new Map<string, string>()
 
 const state = reactive({
@@ -394,6 +412,19 @@ function coverPriority(name: string): number {
   return 0
 }
 
+async function mapWithConcurrency<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++
+      await fn(items[index])
+    }
+  })
+  await Promise.all(workers)
+}
+
+const SCAN_CONCURRENCY = 8
+
 // Try to get last modified time from project.json or file entries
 async function getFolderModifiedTime(dirHandle: FileSystemDirectoryHandle): Promise<number> {
   let latestTime = 0
@@ -467,7 +498,7 @@ function createFallbackWallpaper(folderName: string, dirHandle: FileSystemDirect
 
 function sortSubdirsByWorkshopDate(): void {
   if (!workshopCache || workshopCache.size === 0) {
-    allSubdirs.sort((a, b) => b.name.localeCompare(a.name))
+    allSubdirs.sort((a, b) => a.name.localeCompare(b.name))
     return
   }
 
@@ -500,8 +531,8 @@ async function scanDirectory(dirHandle: FileSystemDirectoryHandle, allowRootFall
   state.wallpapers = []
 
   const firstPage = allSubdirs.slice(0, PAGE_SIZE)
-  for (const subdir of firstPage) {
-    if (!subdir.handle) continue
+  await mapWithConcurrency(firstPage, SCAN_CONCURRENCY, async (subdir) => {
+    if (!subdir.handle) return
     try {
         const wallpaper = await scanWallpaperDir(subdir.name, subdir.handle)
         if (wallpaper) {
@@ -524,12 +555,11 @@ async function scanDirectory(dirHandle: FileSystemDirectoryHandle, allowRootFall
         saveSingleWallpaperCache(fallback)
       } finally {
         state.loadedCount = state.wallpapers.length
-        // 第一页有壁纸加载后尽早结束 loading，让用户能看到已加载的内容
         if (state.loading && state.wallpapers.length > 0) {
           state.loading = false
         }
       }
-  }
+  })
 
   scheduleBackgroundLoad(scanned)
 
@@ -566,11 +596,10 @@ function scheduleBackgroundLoad(scanned: Map<string, WallpaperItem>) {
     const batchSize = 10
     const endIndex = Math.min(currentIndex + batchSize, allSubdirs.length)
 
-    for (let i = currentIndex; i < endIndex; i++) {
-      const subdir = allSubdirs[i]
-      if (!subdir.handle || loadedDirNames.has(subdir.name) || scanned.has(subdir.name)) {
-        continue
-      }
+    const batchSubdirs = allSubdirs.slice(currentIndex, endIndex).filter((subdir): subdir is typeof subdir & { handle: FileSystemDirectoryHandle } =>
+      !!subdir.handle && !loadedDirNames.has(subdir.name) && !scanned.has(subdir.name)
+    )
+    await mapWithConcurrency(batchSubdirs, SCAN_CONCURRENCY, async (subdir) => {
       try {
          const wallpaper = await scanWallpaperDir(subdir.name, subdir.handle)
          if (wallpaper) {
@@ -597,7 +626,7 @@ function scheduleBackgroundLoad(scanned: Map<string, WallpaperItem>) {
        } finally {
          state.loadedCount = state.wallpapers.length
        }
-    }
+    })
 
     currentIndex = endIndex
     updateCategoriesAndTags()
@@ -710,21 +739,18 @@ async function scanWallpaperDir(
       }
     }
   } else {
-    for (const fileName of cached.fileNames) {
+    const allFileNames = [...cached.fileNames]
+    if (cached.coverFileName && !cached.fileNames.includes(cached.coverFileName)) {
+      allFileNames.push(cached.coverFileName)
+    }
+    await mapWithConcurrency(allFileNames, SCAN_CONCURRENCY, async (fileName) => {
       try {
         const handle = await dirHandle.getFileHandle(fileName)
         allFiles.push({ name: fileName, handle })
       } catch {
         allFiles.push({ name: fileName, handle: undefined })
       }
-    }
-    if (cached.coverFileName && !cached.fileNames.includes(cached.coverFileName)) {
-      try {
-        const handle = await dirHandle.getFileHandle(cached.coverFileName)
-        allFiles.push({ name: cached.coverFileName, handle })
-      } catch {
-      }
-    }
+    })
   }
 
   for (const f of allFiles) {
@@ -1052,8 +1078,8 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
     }
 
     for (const name of staleNames) {
-      await deleteCachedWallpaper(name)
-      await deleteCachedDirectoryHandle(name)
+      deleteCachedWallpaper(name).catch(() => {})
+      deleteCachedDirectoryHandle(name).catch(() => {})
       clearCoverUrl(name)
     }
 
@@ -1085,7 +1111,7 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
       const wp = restored.find(w => w.folderName === name)
       allSubdirs.push({
         name,
-        handle: handle || ({} as FileSystemDirectoryHandle),
+        handle: handle || undefined,
         lastModified: wp?.lastModified || 0
       })
     }
@@ -1138,8 +1164,8 @@ async function continueIncrementalScan(): Promise<void> {
   if (deletedNames.length > 0) {
     state.wallpapers = state.wallpapers.filter(w => !deletedNames.includes(w.folderName))
     for (const name of deletedNames) {
-      await deleteCachedWallpaper(name)
-      await deleteCachedDirectoryHandle(name)
+      deleteCachedWallpaper(name).catch(() => {})
+      deleteCachedDirectoryHandle(name).catch(() => {})
       clearCoverUrl(name)
     }
   }
@@ -1248,9 +1274,13 @@ export async function loadPageHandles(folderNames: string[]): Promise<void> {
     while (currentNames.length > 0) {
       pendingPageNames = null
 
-      for (const folderName of currentNames) {
+      const namesToLoad = currentNames.filter(folderName => {
         const wallpaper = state.wallpapers.find(w => w.folderName === folderName)
-        if (!wallpaper || wallpaper.folderHandle) continue
+        return wallpaper && !wallpaper.folderHandle
+      })
+      await mapWithConcurrency(namesToLoad, SCAN_CONCURRENCY, async (folderName) => {
+        const wallpaper = state.wallpapers.find(w => w.folderName === folderName)
+        if (!wallpaper || wallpaper.folderHandle || !workshopContentHandle) return
 
         try {
           const subdirHandle = await workshopContentHandle.getDirectoryHandle(folderName)
@@ -1279,8 +1309,7 @@ export async function loadPageHandles(folderNames: string[]): Promise<void> {
           wallpaper.coverFileHandle = coverFile?.handle
         } catch {
         }
-      }
-
+      })
       if (pendingPageNames) {
         currentNames = pendingPageNames
       } else {
@@ -1332,12 +1361,20 @@ async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<
   }
 
   const updatedNames: string[] = []
+  const checkNames: string[] = []
   for (const name of diskNames) {
     if (!loadedSet.has(name)) continue
     const wallpaper = state.wallpapers.find(w => w.folderName === name)
     if (!wallpaper) continue
     const folderHandle = wallpaper.folderHandle || diskHandleMap.get(name)
     if (!folderHandle) continue
+    checkNames.push(name)
+  }
+  await mapWithConcurrency(checkNames, SCAN_CONCURRENCY, async (name) => {
+    const wallpaper = state.wallpapers.find(w => w.folderName === name)
+    if (!wallpaper) return
+    const folderHandle = wallpaper.folderHandle || diskHandleMap.get(name)
+    if (!folderHandle) return
     try {
       const newModified = await getFolderModifiedTime(folderHandle)
       if (newModified > wallpaper.lastModified) {
@@ -1345,22 +1382,23 @@ async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<
       }
     } catch {
     }
-  }
+  })
 
   if (deletedNames.length > 0) {
     state.wallpapers = state.wallpapers.filter(w => !deletedNames.includes(w.folderName))
     for (const name of deletedNames) {
-      await deleteCachedWallpaper(name)
-      await deleteCachedDirectoryHandle(name)
+      deleteCachedWallpaper(name).catch(() => {})
+      deleteCachedDirectoryHandle(name).catch(() => {})
       loadedDirNames.delete(name)
       clearCoverUrl(name)
     }
   }
 
   if (newNames.length > 0) {
-    for (const name of newNames) {
-      const handle = diskHandleMap.get(name)
-      if (!handle) continue
+    const newItems = newNames.map(name => ({ name, handle: diskHandleMap.get(name) }))
+      .filter((it): it is { name: string; handle: FileSystemDirectoryHandle } => !!it.handle)
+    await mapWithConcurrency(newItems, SCAN_CONCURRENCY, async (item) => {
+      const { name, handle } = item
       try {
         const wallpaper = await scanWallpaperDir(name, handle)
         if (wallpaper) {
@@ -1379,15 +1417,15 @@ async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<
         state.wallpapers.push(fallback)
         loadedDirNames.add(name)
       }
-    }
+    })
   }
 
   if (updatedNames.length > 0) {
-    for (const name of updatedNames) {
+    await mapWithConcurrency(updatedNames, SCAN_CONCURRENCY, async (name) => {
       const wallpaper = state.wallpapers.find(w => w.folderName === name)
-      if (!wallpaper) continue
+      if (!wallpaper) return
       const folderHandle = wallpaper.folderHandle || diskHandleMap.get(name)
-      if (!folderHandle) continue
+      if (!folderHandle) return
       try {
         const oldCoverUrl = wallpaper.coverUrl
         const updated = await scanWallpaperDir(name, folderHandle, true)
@@ -1400,7 +1438,7 @@ async function doIncrementalSync(dirHandle: FileSystemDirectoryHandle): Promise<
         }
       } catch {
       }
-    }
+    })
   }
 
   state.totalSubdirs = diskNames.size
@@ -1504,11 +1542,6 @@ export function getCoverUrl(folderName: string): string | undefined {
 }
 
 export async function purgeWallpaper(folderName: string, deleteFromDisk = false): Promise<void> {
-  if (deleteFromDisk && workshopContentHandle) {
-    try {
-      await workshopContentHandle.removeEntry(folderName, { recursive: true })
-    } catch { /* 目录已不存在或已被 move 移走，忽略 */ }
-  }
   state.wallpapers = state.wallpapers.filter(w => w.folderName !== folderName)
   loadedDirNames.delete(folderName)
   const idx = allSubdirs.findIndex(s => s.name === folderName)
@@ -1516,12 +1549,19 @@ export async function purgeWallpaper(folderName: string, deleteFromDisk = false)
   state.totalSubdirs = allSubdirs.length
   state.loadedCount = state.wallpapers.length
   clearCoverUrl(folderName)
-  await deleteCachedWallpaper(folderName)
-  await deleteCachedDirectoryHandle(folderName)
-  await deleteThumbnail(folderName)
   state.categories = buildCategories(state.wallpapers)
   state.tags = buildTags(state.wallpapers)
   state.contentRatings = buildContentRatings(state.wallpapers)
+
+  deleteCachedWallpaper(folderName).catch(() => {})
+  deleteCachedDirectoryHandle(folderName).catch(() => {})
+  deleteThumbnail(folderName).catch(() => {})
+
+  if (deleteFromDisk && workshopContentHandle) {
+    try {
+      await workshopContentHandle.removeEntry(folderName, { recursive: true })
+    } catch { /* 目录已不存在或已被 move 移走，忽略 */ }
+  }
 }
 
 export function useWallpaperStore() {
@@ -1627,26 +1667,9 @@ export function useWallpaperStore() {
     }
 
     if (state.selectedContentRatings.length > 0 && state.selectedContentRatings.length < 3) {
-      const ratingTranslation: Record<string, string> = {
-        '大众级': '大众级',
-        '家长指导级': '家长指导级',
-        '限制级': '限制级',
-        'everyone': '大众级',
-        'e': '大众级',
-        'g': '大众级',
-        'teen': '家长指导级',
-        't': '家长指导级',
-        'pg-13': '家长指导级',
-        'questionable': '家长指导级',
-        'mature': '限制级',
-        'm': '限制级',
-        'r-18': '限制级',
-        'ao': '限制级',
-        'adults only': '限制级'
-      }
       result = result.filter(wp => {
         const lower = wp.contentRating.toLowerCase()
-        const rating = ratingTranslation[lower] || '大众级'
+        const rating = RATING_TRANSLATION[lower] || '大众级'
         return state.selectedContentRatings.includes(rating)
       })
     }

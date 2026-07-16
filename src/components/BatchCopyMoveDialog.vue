@@ -117,7 +117,7 @@
                 <circle cx="10" cy="10" r="8" stroke="var(--border)" stroke-width="2" opacity="0.2"/>
                 <circle cx="10" cy="10" r="8" stroke="var(--accent)" stroke-width="2" stroke-dasharray="35" stroke-linecap="round" class="cm-spinner-arc"/>
               </svg>
-              <span>{{ mode === 'copy' ? '正在复制' : '正在移动' }} {{ progress.current }}/{{ progress.total }} 个壁纸</span>
+              <span>{{ mode === 'copy' ? '正在复制' : '正在移动' }} {{ progress.current }}/{{ progress.total }} 个壁纸<span v-if="fileProgress.total > 0" class="cm-file-progress">（{{ fileProgress.current }}/{{ fileProgress.total }} 文件）</span></span>
             </div>
           </div>
 
@@ -149,6 +149,7 @@ const props = defineProps<{
   defaultTargetDirHandle: FileSystemDirectoryHandle | null
   processing: boolean
   progress: { current: number; total: number }
+  fileProgress: { current: number; total: number }
 }>()
 
 const emit = defineEmits<{
@@ -740,6 +741,11 @@ function onConfirm() {
     font-size: 12px;
     color: var(--text-secondary);
   }
+}
+
+.cm-file-progress {
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .cm-spinner {

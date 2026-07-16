@@ -476,6 +476,7 @@ const currentDirHandle = ref<FileSystemDirectoryHandle | null>(null)
 const dirHandleStack = ref<FileSystemDirectoryHandle[]>([])
 const selectedFiles = ref<Set<string>>(new Set())
 const lastSelectedIndex = ref(-1)
+let loadFilesToken = 0
 
 function togglePanel() {
   isExpanded.value = !isExpanded.value
@@ -541,24 +542,28 @@ const schemeColorHex = computed(() => {
 })
 
 async function loadFiles(dirHandle: FileSystemDirectoryHandle) {
+  const token = ++loadFilesToken
   currentDirHandle.value = dirHandle
   const items: FileSystemItem[] = []
-  
+
   for await (const [name, handle] of dirHandle.entries()) {
     items.push({
       name,
-      kind: handle.kind as 'file' | 'directory',
+      kind: handle.kind,
       handle
     })
   }
-  
+
+  if (token !== loadFilesToken) return
+
   items.sort((a, b) => {
     if (a.kind !== b.kind) {
       return a.kind === 'directory' ? -1 : 1
     }
     return a.name.localeCompare(b.name, 'zh-CN')
   })
-  
+
+  if (token !== loadFilesToken) return
   currentFiles.value = items
 }
 
@@ -725,7 +730,7 @@ async function copyFilePath() {
   if (!fileContextMenu.item || !props.wallpaper) return
   try {
     const segments = ['steamapps', 'workshop', 'content', '431960', props.wallpaper.folderName, ...currentPath.value.slice(1), fileContextMenu.item.name]
-    const path = segments.join('\\')
+    const path = segments.join('/')
     await navigator.clipboard.writeText(path)
     emit('showToast', '文件路径已复制到剪贴板')
   } catch {
@@ -871,22 +876,26 @@ async function moveSelectedFiles() {
     fileContextMenu.visible = false
     return
   }
+  const dir = currentDirHandle.value
   try {
     const targetDir = await window.showDirectoryPicker({ mode: 'readwrite' })
     const selectedItems = currentFiles.value.filter(i => selectedFiles.value.has(i.name))
     const movedItems: FileSystemItem[] = []
     const copiedItems: FileSystemItem[] = []
 
-    for (const item of selectedItems) {
+    // 并发尝试原生 move，失败的转入复制队列
+    await mapWithConcurrency(selectedItems, COPY_CONCURRENCY, async (item) => {
       const moved = await tryMoveEntry(item.handle as FileSystemHandle, targetDir, item.name)
       if (moved) {
         movedItems.push(item)
       } else {
         copiedItems.push(item)
       }
-    }
+    })
 
-    for (const item of copiedItems) {
+    // 并发复制
+    const failedItems: string[] = []
+    await mapWithConcurrency(copiedItems, COPY_CONCURRENCY, async (item) => {
       try {
         if (item.kind === 'directory') {
           await copyDirectoryRecursive(
@@ -899,22 +908,27 @@ async function moveSelectedFiles() {
         }
       } catch (err) {
         const msg = (err as Error).message || (err as Error).name || '未知错误'
+        failedItems.push(item.name)
         emit('showToast', `移动失败: ${item.name} - ${msg}`)
-        throw err
       }
+    })
+
+    if (failedItems.length > 0) {
+      throw new Error(`${failedItems.join(', ')} 复制失败`)
     }
 
-    for (const item of copiedItems) {
+    // 并发删除源文件（fire-and-forget，失败不影响整体结果）
+    await mapWithConcurrency(copiedItems, COPY_CONCURRENCY, async (item) => {
       try {
-        await deleteEntry(currentDirHandle.value!, item.name, item.kind)
+        await deleteEntry(dir, item.name, item.kind)
       } catch {
         // 删除失败不影响整体结果，文件已复制成功
       }
-    }
+    })
 
     selectedFiles.value.clear()
     lastSelectedIndex.value = -1
-    await loadFiles(currentDirHandle.value!)
+    await loadFiles(dir)
 
     const total = movedItems.length + copiedItems.length
     const moveHint = movedItems.length > 0 ? `（${movedItems.length} 个秒移）` : ''
@@ -934,6 +948,7 @@ function onDocumentClick() {
 }
 
 watch(() => props.wallpaper, (newWallpaper) => {
+  loadFilesToken++
   dirHandleStack.value = []
   selectedFiles.value.clear()
   lastSelectedIndex.value = -1
@@ -949,14 +964,20 @@ watch(() => props.wallpaper, (newWallpaper) => {
 
 // folderHandle 异步加载后重新加载文件列表
 watch(() => props.wallpaper?.folderHandle, (newHandle, oldHandle) => {
-  if (newHandle && !oldHandle && props.wallpaper) {
+  if (newHandle && props.wallpaper && newHandle !== oldHandle) {
     currentPath.value = ['壁纸目录']
     loadFiles(newHandle)
   }
 })
 
 onMounted(() => document.addEventListener('click', onDocumentClick))
-onUnmounted(() => document.removeEventListener('click', onDocumentClick))
+onUnmounted(() => {
+  document.removeEventListener('click', onDocumentClick)
+  if (pressTimer) {
+    clearTimeout(pressTimer)
+    pressTimer = null
+  }
+})
 
 function onImageError(e: Event) {
   const img = e.target as HTMLImageElement

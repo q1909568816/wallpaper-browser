@@ -102,9 +102,6 @@ async function loadCover() {
   }
 }
 
-function cleanupCover() {
-}
-
 onMounted(() => {
   if (props.wallpaper.coverUrl) {
     loadedCover.value = true
@@ -134,7 +131,6 @@ watch(() => props.wallpaper.coverFileHandle, (newHandle) => {
 onUnmounted(() => {
   observer?.disconnect()
   observer = null
-  cleanupCover()
 })
 
 function handleClick() {

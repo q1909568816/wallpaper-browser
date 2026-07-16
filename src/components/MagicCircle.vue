@@ -14,6 +14,8 @@ const emit = defineEmits<{
 
 const canvasRef = ref<HTMLCanvasElement | null>(null)
 let animationId: number | null = null
+let dprMediaQuery: MediaQueryList | null = null
+let onDprChange: (() => void) | null = null
 
 type AnimationType = 'hexagram' | 'flower' | 'clover' | 'snowflake'
 const animations: AnimationType[] = ['hexagram', 'flower', 'clover', 'snowflake']
@@ -35,13 +37,24 @@ onMounted(() => {
   if (!ctx) return
 
   const size = 64
-  const ratio = window.devicePixelRatio
 
-  canvas.style.width = `${size}px`
-  canvas.style.height = `${size}px`
-  canvas.width = size * ratio
-  canvas.height = size * ratio
-  ctx.scale(ratio, ratio)
+  const setupCanvas = () => {
+    const ratio = window.devicePixelRatio
+    canvas.style.width = `${size}px`
+    canvas.style.height = `${size}px`
+    canvas.width = size * ratio
+    canvas.height = size * ratio
+    ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.scale(ratio, ratio)
+  }
+
+  setupCanvas()
+
+  onDprChange = () => {
+    setupCanvas()
+  }
+  dprMediaQuery = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`)
+  dprMediaQuery.addEventListener('change', onDprChange)
 
   let progress = 0
   let rotation = 0
@@ -367,6 +380,9 @@ onMounted(() => {
 onUnmounted(() => {
   if (animationId) {
     cancelAnimationFrame(animationId)
+  }
+  if (dprMediaQuery && onDprChange) {
+    dprMediaQuery.removeEventListener('change', onDprChange)
   }
 })
 </script>

@@ -89,7 +89,7 @@ export interface WorkshopMetadata {
 
 interface Settings {
   key: string
-  value: any
+  value: unknown
 }
 
 let db: IDBDatabase | null = null
@@ -506,7 +506,7 @@ export async function getSetting<T>(key: string, defaultValue?: T): Promise<T | 
       const req = tx.objectStore(STORES.SETTINGS).get(key)
       req.onsuccess = () => {
         const result = req.result as Settings | undefined
-        resolve(result ? result.value : defaultValue)
+        resolve(result ? (result.value as T) : defaultValue)
       }
       req.onerror = () => reject(req.error)
     })
@@ -515,7 +515,7 @@ export async function getSetting<T>(key: string, defaultValue?: T): Promise<T | 
   }
 }
 
-export async function setSetting(key: string, value: any): Promise<void> {
+export async function setSetting(key: string, value: unknown): Promise<void> {
   try {
     const database = await openDB()
     return new Promise((resolve, reject) => {

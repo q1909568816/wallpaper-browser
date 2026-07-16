@@ -329,6 +329,7 @@
       :default-target-dir-handle="batchCopyMoveState.targetDirHandle"
       :processing="batchCopyMoveState.processing"
       :progress="batchCopyMoveState.progress"
+      :file-progress="batchCopyMoveState.fileProgress"
       @confirm="confirmBatchCopyMove"
       @cancel="cancelBatchCopyMove"
     />
@@ -465,7 +466,7 @@ const isMobile = ref(window.innerWidth <= 768)
 const sidebarCollapsed = ref(isMobile.value)
 const showHelpModal = ref(false)
 
-const sortLabels: Record<string, string> = {
+const sortLabels: Record<SortKey, string> = {
   'name': '名称',
   'date': '订阅日期',
   'category': '分类'
@@ -511,8 +512,8 @@ async function handleRefresh() {
     } else {
       showToast('数据已是最新')
     }
-  } catch {
-    showToast('刷新失败')
+  } catch (err) {
+    showToast('刷新失败: ' + (err as Error).message)
   }
 }
 
@@ -522,6 +523,7 @@ function onDocumentClick(e: MouseEvent) {
   }
   if (contextMenu.visible) {
     contextMenu.visible = false
+    contextMenu.wallpaper = null
   }
 }
 
@@ -544,6 +546,7 @@ onMounted(async () => {
 onUnmounted(() => {
   document.removeEventListener('click', onDocumentClick)
   window.removeEventListener('resize', onResize)
+  if (searchDebounceTimer) clearTimeout(searchDebounceTimer)
 })
 
 const currentPage = ref(1)
@@ -645,7 +648,7 @@ function goToPage(page: number) {
 }
 
 function handleJump() {
-  if (jumpInput.value == null) return
+  if (jumpInput.value === null || jumpInput.value === undefined) return
   const page = Math.round(jumpInput.value)
   if (page < 1 || page > totalPages.value) {
     jumpInput.value = null
@@ -709,7 +712,8 @@ const batchCopyMoveState = reactive({
   targetDirHandle: null as FileSystemDirectoryHandle | null,
   targetDirName: '',
   processing: false,
-  progress: { current: 0, total: 0 }
+  progress: { current: 0, total: 0 },
+  fileProgress: { current: 0, total: 0 }
 })
 
 async function initiateBatchCopy() {
@@ -747,53 +751,51 @@ function cancelBatchCopyMove() {
 async function confirmBatchCopyMove(items: { wallpaper: WallpaperItem; dirName: string; conflictMode: 'replace' | 'merge'; targetDirHandle: FileSystemDirectoryHandle }[]) {
   batchCopyMoveState.processing = true
   batchCopyMoveState.progress = { current: 0, total: items.length }
+  batchCopyMoveState.fileProgress = { current: 0, total: 0 }
 
   try {
-    for (const item of items) {
+    const errors: string[] = []
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
       const { wallpaper, dirName, conflictMode, targetDirHandle } = item
 
       if (!wallpaper.folderHandle) {
         await loadPageHandles([wallpaper.folderName])
         const wp = state.wallpapers.find(w => w.folderName === wallpaper.folderName)
-        if (wp?.folderHandle) {
-          wallpaper.folderHandle = wp.folderHandle
-        }
+        if (wp?.folderHandle) wallpaper.folderHandle = wp.folderHandle
+      }
+      if (!wallpaper.folderHandle) {
+        errors.push(`"${wallpaper.name}": 无法获取目录句柄`)
+        batchCopyMoveState.progress.current++
+        continue
       }
 
-      if (!wallpaper.folderHandle) {
-        throw new Error(`无法获取 "${wallpaper.name}" 的目录句柄`)
+      if (conflictMode === 'replace') {
+        try { await targetDirHandle.removeEntry(dirName, { recursive: true }) } catch {}
       }
 
       if (batchCopyMoveState.mode === 'move') {
-        if (conflictMode === 'replace') {
-          try {
-            await targetDirHandle.removeEntry(dirName, { recursive: true })
-          } catch {}
-        }
         const moved = await tryMoveDirectory(wallpaper.folderHandle, targetDirHandle, dirName)
         if (moved) {
-          await purgeWallpaper(wallpaper.folderName, true)
+          purgeWallpaper(wallpaper.folderName, true)
           batchCopyMoveState.progress.current++
           continue
         }
       }
 
-      let newDir: FileSystemDirectoryHandle
+      try {
+        await copyDirectoryInto(
+          wallpaper.folderHandle, targetDirHandle, dirName,
+          (total) => { batchCopyMoveState.fileProgress.total += total },
+          () => { batchCopyMoveState.fileProgress.current++ }
+        )
 
-      if (conflictMode === 'replace') {
-        try {
-          await targetDirHandle.removeEntry(dirName, { recursive: true })
-        } catch {}
-        newDir = await targetDirHandle.getDirectoryHandle(dirName, { create: true })
-      } else {
-        newDir = await targetDirHandle.getDirectoryHandle(dirName, { create: true })
-      }
-
-      const counter = { current: 0 }
-      await copyDirectoryRecursive(wallpaper.folderHandle, newDir, counter)
-
-      if (batchCopyMoveState.mode === 'move') {
-        await purgeWallpaper(wallpaper.folderName, true)
+        if (batchCopyMoveState.mode === 'move') {
+          purgeWallpaper(wallpaper.folderName, true)
+        }
+      } catch (copyErr) {
+        errors.push(`"${wallpaper.name}": ${(copyErr as Error).message || '复制失败'}`)
       }
 
       batchCopyMoveState.progress.current++
@@ -802,7 +804,14 @@ async function confirmBatchCopyMove(items: { wallpaper: WallpaperItem; dirName: 
     selectedWallpapers.value.clear()
     selectedWallpaper.value = null
     await loadCurrentPageHandles()
-    showToast(batchCopyMoveState.mode === 'copy' ? `已复制 ${items.length} 个壁纸` : `已移动 ${items.length} 个壁纸`)
+
+    const modeLabel = batchCopyMoveState.mode === 'copy' ? '复制' : '移动'
+    if (errors.length > 0) {
+      const successCount = items.length - errors.length
+      showToast(`${modeLabel}完成: ${successCount} 成功, ${errors.length} 失败 - ${errors[0]}`)
+    } else {
+      showToast(modeLabel === '复制' ? `已复制 ${items.length} 个壁纸` : `已移动 ${items.length} 个壁纸`)
+    }
     batchCopyMoveState.visible = false
   } catch (err) {
     const msg = (err as Error).message || (err as Error).name || '未知错误'
@@ -964,6 +973,7 @@ function setWallpaper() {
   showToast('正在设置壁纸...')
   window.location.href = `wallpaper-browser://apply?id=${encodeURIComponent(contextMenu.wallpaper.folderName)}`
   contextMenu.visible = false
+  contextMenu.wallpaper = null
 }
 
 function addToPlaylist() {
@@ -971,6 +981,7 @@ function addToPlaylist() {
   showToast('正在加入播放列表...')
   window.location.href = `wallpaper-browser://addplaylist?id=${encodeURIComponent(contextMenu.wallpaper.folderName)}`
   contextMenu.visible = false
+  contextMenu.wallpaper = null
 }
 
 function openFolder() {
@@ -978,6 +989,7 @@ function openFolder() {
   showToast('正在打开目录...')
   window.location.href = `wallpaper-browser://open?id=${encodeURIComponent(contextMenu.wallpaper.folderName)}`
   contextMenu.visible = false
+  contextMenu.wallpaper = null
 }
 
 function openFolderFromDetail(subPath?: string) {
@@ -1036,25 +1048,39 @@ function openWorkshopUrl(workshopId: string) {
   openSteamUrlWithFallback(steamUrl, webUrl)
 }
 
+let steamFallbackCleanup: (() => void) | null = null
+
 function openSteamUrlWithFallback(steamUrl: string, webUrl: string) {
+  if (steamFallbackCleanup) {
+    steamFallbackCleanup()
+    steamFallbackCleanup = null
+  }
+
   window.location.href = steamUrl
-  
+
   const fallbackTimer = setTimeout(() => {
     window.open(webUrl, '_blank')
   }, 500)
-  
-  const visibilityHandler = () => {
+
+  const cleanup = () => {
     clearTimeout(fallbackTimer)
     document.removeEventListener('visibilitychange', visibilityHandler)
     window.removeEventListener('blur', visibilityHandler)
+    if (steamFallbackCleanup === cleanup) {
+      steamFallbackCleanup = null
+    }
   }
-  
+
+  const visibilityHandler = () => {
+    cleanup()
+  }
+
   document.addEventListener('visibilitychange', visibilityHandler)
   window.addEventListener('blur', visibilityHandler)
-  
+  steamFallbackCleanup = cleanup
+
   setTimeout(() => {
-    document.removeEventListener('visibilitychange', visibilityHandler)
-    window.removeEventListener('blur', visibilityHandler)
+    cleanup()
   }, 1000)
 }
 
@@ -1069,10 +1095,99 @@ const copyMoveState = reactive({
   progress: { current: 0, total: 0 }
 })
 
+const COPY_CONCURRENCY = 8
+const SMALL_FILE_THRESHOLD = 64 * 1024 * 1024
+
+interface FileCopyTask {
+  source: FileSystemFileHandle
+  targetDir: FileSystemDirectoryHandle
+  name: string
+}
+
+async function mapWithConcurrency<T>(items: T[], limit: number, fn: (item: T) => Promise<void>): Promise<void> {
+  let cursor = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++
+      await fn(items[index])
+    }
+  })
+  await Promise.all(workers)
+}
+
+async function copyDirectoryInto(
+  source: FileSystemDirectoryHandle,
+  targetParent: FileSystemDirectoryHandle,
+  targetName: string,
+  onTotal: (n: number) => void,
+  onProgress: () => void
+): Promise<void> {
+  const rootTarget = await targetParent.getDirectoryHandle(targetName, { create: true })
+  const tasks: FileCopyTask[] = []
+
+  // 并行扫描：子目录并发遍历，不等前一个目录扫描完
+  async function collect(sourceDir: FileSystemDirectoryHandle, targetDir: FileSystemDirectoryHandle): Promise<void> {
+    const subDirPromises: Promise<void>[] = []
+    for await (const [name, handle] of sourceDir.entries()) {
+      if (handle.kind === 'file') {
+        tasks.push({ source: handle as FileSystemFileHandle, targetDir, name })
+      } else {
+        const subHandle = handle as FileSystemDirectoryHandle
+        const p = targetDir.getDirectoryHandle(name, { create: true })
+          .then(subTarget => collect(subHandle, subTarget))
+        subDirPromises.push(p)
+      }
+    }
+    await Promise.all(subDirPromises)
+  }
+
+  await collect(source, rootTarget)
+  onTotal(tasks.length)
+
+  // 进度节流：用 rAF 批量更新，避免每文件触发 Vue 响应
+  let pendingProgress = 0
+  let progressRaf = 0
+  function flushProgress() {
+    progressRaf = 0
+    const n = pendingProgress
+    pendingProgress = 0
+    for (let i = 0; i < n; i++) onProgress()
+  }
+
+  // 并发复制：小文件 write() 快速路径，大文件 stream 管道
+  await mapWithConcurrency(tasks, COPY_CONCURRENCY, async (task) => {
+    const [file, newFileHandle] = await Promise.all([
+      task.source.getFile(),
+      task.targetDir.getFileHandle(task.name, { create: true })
+    ])
+    const writable = await newFileHandle.createWritable()
+    try {
+      if (file.size >= SMALL_FILE_THRESHOLD) {
+        await file.stream().pipeTo(writable)
+      } else {
+        await writable.write(file)
+        await writable.close()
+      }
+    } catch (err) {
+      try { await writable.close() } catch { /* ignore */ }
+      throw err
+    }
+    pendingProgress++
+    if (!progressRaf) progressRaf = requestAnimationFrame(flushProgress)
+  })
+
+  // 刷新剩余进度
+  if (progressRaf) cancelAnimationFrame(progressRaf)
+  flushProgress()
+}
+
+
+
 async function initiateCopyMove(mode: 'copy' | 'move', wallpaper: WallpaperItem) {
   copyMoveState.mode = mode
   copyMoveState.wallpaper = wallpaper
   contextMenu.visible = false
+  contextMenu.wallpaper = null
 
   if (!copyMoveState.targetDirHandle) {
     try {
@@ -1138,23 +1253,22 @@ async function confirmCopyMove(dirName: string, conflictMode: 'replace' | 'merge
       }
     }
 
-    let newDir: FileSystemDirectoryHandle
     if (conflictMode === 'replace') {
       try {
         await target.removeEntry(dirName, { recursive: true })
       } catch {
         // 目标不存在，忽略
       }
-      newDir = await target.getDirectoryHandle(dirName, { create: true })
-    } else {
-      newDir = await target.getDirectoryHandle(dirName, { create: true })
     }
 
-    const total = await countFiles(wp.folderHandle)
-    copyMoveState.progress.total = total
+    copyMoveState.progress.total = 0
+    copyMoveState.progress.current = 0
 
-    const counter = { current: 0 }
-    await copyDirectoryRecursive(wp.folderHandle, newDir, counter)
+    await copyDirectoryInto(
+      wp.folderHandle, target, dirName,
+      (total) => { copyMoveState.progress.total = total },
+      () => { copyMoveState.progress.current++ }
+    )
 
     if (copyMoveState.mode === 'move') {
       showToast('壁纸已移动')
@@ -1180,94 +1294,38 @@ function cancelCopyMove() {
   copyMoveState.visible = false
 }
 
-async function countFiles(dir: FileSystemDirectoryHandle): Promise<number> {
-  let total = 0
-  for await (const [, handle] of dir.entries()) {
-    if (handle.kind === 'file') {
-      total++
-    } else {
-      total += await countFiles(handle as FileSystemDirectoryHandle)
-    }
-  }
-  return total
-}
-
-const COPY_CONCURRENCY = 5
-
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length)
-  let cursor = 0
-  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (cursor < items.length) {
-      const index = cursor++
-      results[index] = await fn(items[index])
-    }
-  })
-  await Promise.all(workers)
-  return results
-}
-
-interface CopyTask {
-  sourceHandle: FileSystemFileHandle
-  targetDir: FileSystemDirectoryHandle
-  name: string
-}
-
-async function collectCopyTasks(
-  source: FileSystemDirectoryHandle,
-  target: FileSystemDirectoryHandle,
-  tasks: CopyTask[]
-): Promise<void> {
-  const entries: [string, FileSystemHandle][] = []
-  for await (const [name, handle] of source.entries()) {
-    entries.push([name, handle])
-  }
-  for (const [name, handle] of entries) {
-    if (handle.kind === 'file') {
-      tasks.push({ sourceHandle: handle as FileSystemFileHandle, targetDir: target, name })
-    } else {
-      const newDirHandle = await target.getDirectoryHandle(name, { create: true })
-      await collectCopyTasks(handle as FileSystemDirectoryHandle, newDirHandle, tasks)
-    }
-  }
-}
-
-async function copyDirectoryRecursive(
-  source: FileSystemDirectoryHandle,
-  target: FileSystemDirectoryHandle,
-  counter: { current: number }
-): Promise<void> {
-  const tasks: CopyTask[] = []
-  await collectCopyTasks(source, target, tasks)
-
-  await mapWithConcurrency(tasks, COPY_CONCURRENCY, async (task) => {
-    const file = await task.sourceHandle.getFile()
-    const newFileHandle = await task.targetDir.getFileHandle(task.name, { create: true })
-    const writable = await newFileHandle.createWritable()
-    try {
-      await file.stream().pipeTo(writable)
-    } catch (err) {
-      try { await writable.close() } catch { /* ignore */ }
-      throw err
-    }
-    counter.current++
-    if (copyMoveState.processing) {
-      copyMoveState.progress.current = counter.current
-    }
-  })
-}
+let nativeMoveChecked = false
+let nativeMoveSupported = false
 
 async function tryMoveDirectory(
   source: FileSystemDirectoryHandle,
   targetParent: FileSystemDirectoryHandle,
   name: string
 ): Promise<boolean> {
+  if (nativeMoveChecked && !nativeMoveSupported) return false
   const moveFn = (source as any).move
-  if (typeof moveFn !== 'function') return false
+  if (typeof moveFn !== 'function') {
+    nativeMoveChecked = true
+    nativeMoveSupported = false
+    return false
+  }
   try {
+    const perm = await (source as any).queryPermission?.({ mode: 'readwrite' })
+    if (perm !== 'granted') {
+      const reqPerm = await (source as any).requestPermission?.({ mode: 'readwrite' })
+      if (reqPerm !== 'granted') {
+        nativeMoveChecked = true
+        nativeMoveSupported = false
+        return false
+      }
+    }
     await moveFn.call(source, targetParent, name)
+    nativeMoveChecked = true
+    nativeMoveSupported = true
     return true
-  } catch {
+  } catch (err) {
+    nativeMoveChecked = true
+    nativeMoveSupported = false
     return false
   }
 }

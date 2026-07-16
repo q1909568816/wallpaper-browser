@@ -44,7 +44,7 @@
         <div class="preview-content">
           <div v-if="previewUrl || previewSrc || textUrl" class="preview-media">
             <div v-if="isImage" class="image-container" @wheel.prevent="handleWheel">
-              <img :src="previewUrl" class="preview-image" :style="imageStyle" alt="预览"/>
+              <img :src="previewUrl" class="preview-image" :style="imageStyle" alt="预览" @error="onImageError"/>
             </div>
             <iframe v-else-if="isText" :src="textUrl" class="preview-iframe" sandbox="allow-same-origin"/>
             <iframe v-else-if="isWeb" :src="previewSrc" class="preview-iframe" sandbox="allow-scripts allow-same-origin"/>
@@ -104,6 +104,7 @@ const TEXT_MIME: Record<string, string> = {
 }
 
 const generatedUrl = ref('')
+const ownedBlobUrl = ref('')
 const previewSrc = ref('')
 const textUrl = ref('')
 const scale = ref(1)
@@ -111,6 +112,22 @@ const isFullscreen = ref(false)
 const videoRef = ref<HTMLVideoElement | null>(null)
 let generateToken = 0
 let webPreviewCleanup: (() => void) | null = null
+
+function setOwnedBlobUrl(url: string) {
+  if (ownedBlobUrl.value && ownedBlobUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(ownedBlobUrl.value)
+  }
+  ownedBlobUrl.value = url
+  generatedUrl.value = url
+}
+
+function setSharedUrl(url: string) {
+  if (ownedBlobUrl.value && ownedBlobUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(ownedBlobUrl.value)
+  }
+  ownedBlobUrl.value = ''
+  generatedUrl.value = url
+}
 
 const previewUrl = computed(() => {
   if (generatedUrl.value) return generatedUrl.value
@@ -124,12 +141,12 @@ const imageStyle = computed(() => ({
 }))
 
 const title = computed(() => {
-  if (props.file && typeof (props.file as any).getFile === 'function') return props.file.name
+  if (props.file && typeof props.file?.getFile === 'function') return props.file.name
   return props.wallpaper?.name || ''
 })
 
 const fileName = computed(() => {
-  if (props.file && typeof (props.file as any).getFile === 'function') return props.file.name
+  if (props.file && typeof props.file?.getFile === 'function') return props.file.name
   return props.wallpaper?.mainFile || props.wallpaper?.previewFile || ''
 })
 
@@ -172,7 +189,7 @@ async function generateUrl() {
   if (!props.visible || !props.wallpaper) {
     if (token === generateToken) {
       cleanup()
-      generatedUrl.value = ''
+      setSharedUrl('')
     }
     return
   }
@@ -181,17 +198,15 @@ async function generateUrl() {
     const mainFile = props.wallpaper.mainFile || props.wallpaper.previewFile
     if (mainFile) {
       const targetFile = props.wallpaper.files.find(f => f.name.toLowerCase() === mainFile.toLowerCase())?.handle || null
-      if (targetFile && typeof (targetFile as any).getFile === 'function') {
+      if (targetFile && typeof targetFile?.getFile === 'function') {
         try {
           const file = await (targetFile as FileSystemFileHandle).getFile()
           if (token !== generateToken) return
-          const oldUrl = generatedUrl.value
-          generatedUrl.value = URL.createObjectURL(file)
-          if (oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl)
+          setOwnedBlobUrl(URL.createObjectURL(file))
           return
         } catch {
           if (token === generateToken) {
-            generatedUrl.value = props.wallpaper.coverUrl || ''
+            setSharedUrl(props.wallpaper.coverUrl || '')
           }
         }
       }
@@ -199,28 +214,31 @@ async function generateUrl() {
 
     if (token === generateToken) {
       cleanup()
-      generatedUrl.value = props.wallpaper.coverUrl || ''
+      setSharedUrl(props.wallpaper.coverUrl || '')
     }
     return
   }
 
-  if (props.file && typeof (props.file as any).getFile === 'function') {
+  if (props.file && typeof props.file?.getFile === 'function') {
     try {
       const file = await props.file.getFile()
       if (token !== generateToken) return
-      const oldUrl = generatedUrl.value
-      generatedUrl.value = URL.createObjectURL(file)
-      if (oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl)
+      setOwnedBlobUrl(URL.createObjectURL(file))
     } catch {
       if (token === generateToken) {
-        generatedUrl.value = props.wallpaper.coverUrl || ''
+        setSharedUrl(props.wallpaper.coverUrl || '')
       }
     }
   } else {
     if (token === generateToken) {
-      generatedUrl.value = props.wallpaper.coverUrl || ''
+      setSharedUrl(props.wallpaper.coverUrl || '')
     }
   }
+}
+
+function onImageError(e: Event) {
+  const img = e.target as HTMLImageElement
+  img.style.display = 'none'
 }
 
 function zoomIn() {
@@ -258,6 +276,7 @@ function handleFullscreenChange() {
 }
 
 async function generateWebPreview() {
+  const token = ++generateToken
   if (!props.visible || !props.wallpaper) return
 
   const htmlFileName = props.file?.name || props.wallpaper.mainFile || props.wallpaper.previewFile || 'index.html'
@@ -288,8 +307,13 @@ async function generateWebPreview() {
   }
 
   if (fileMap.size === 0) return
+  if (token !== generateToken) return
 
   const result = await buildWebPreview(fileMap, htmlFileName, folderHandle)
+  if (token !== generateToken) {
+    result?.cleanup()
+    return
+  }
   if (result) {
     webPreviewCleanup = result.cleanup
     previewSrc.value = result.src
@@ -301,12 +325,12 @@ async function generateTextPreview() {
   if (!props.visible || !props.wallpaper) return
 
   let targetHandle: FileSystemFileHandle | null = null
-  if (props.file && typeof (props.file as any).getFile === 'function') {
+  if (props.file && typeof props.file?.getFile === 'function') {
     targetHandle = props.file
   } else {
     const mainFile = props.wallpaper.mainFile || props.wallpaper.previewFile || ''
     const found = props.wallpaper.files.find(f => f.name.toLowerCase() === mainFile.toLowerCase())?.handle
-    if (found && typeof (found as any).getFile === 'function') {
+    if (found && typeof found?.getFile === 'function') {
       targetHandle = found as FileSystemFileHandle
     }
   }
@@ -332,7 +356,7 @@ watch(() => [props.visible, props.file, props.wallpaper], () => {
     cleanup()
     return
   }
-  cleanupBlobs()
+  cleanup()
   if (isText.value) {
     generateTextPreview()
   } else if (isWeb.value) {
@@ -343,10 +367,11 @@ watch(() => [props.visible, props.file, props.wallpaper], () => {
 }, { immediate: true })
 
 function cleanupBlobs() {
-  if (generatedUrl.value.startsWith('blob:')) {
-    URL.revokeObjectURL(generatedUrl.value)
-    generatedUrl.value = ''
+  if (ownedBlobUrl.value && ownedBlobUrl.value.startsWith('blob:')) {
+    URL.revokeObjectURL(ownedBlobUrl.value)
   }
+  ownedBlobUrl.value = ''
+  generatedUrl.value = ''
   if (textUrl.value.startsWith('blob:')) {
     URL.revokeObjectURL(textUrl.value)
     textUrl.value = ''

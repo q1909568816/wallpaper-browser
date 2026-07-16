@@ -120,6 +120,12 @@ function sendFilesToSW(files: [string, Blob][]): Promise<void> {
 
 function clearSWCache(): void {
   previewFolderHandle = null
+  const target = navigator.serviceWorker?.controller || swRegistration?.active || null
+  if (target) {
+    try {
+      target.postMessage({ type: 'clear' })
+    } catch { /* ignore */ }
+  }
 }
 
 export async function readAllFilesRecursive(dirHandle: FileSystemDirectoryHandle, prefix = ''): Promise<Map<string, Blob>> {
