@@ -21,6 +21,14 @@
           <span class="meta-type">{{ typeLabel }}</span>
         </div>
 
+        <div v-if="wallpaper.authorSteamId" class="panel-author" @click="$emit('openAuthor')">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          <span>{{ wallpaper.authorName || '查看作者主页' }}</span>
+        </div>
+
         <div class="panel-stats">
           <div class="stat-item">
             <span class="stat-value">{{ wallpaper.files.length }}</span>
@@ -440,6 +448,7 @@ const emit = defineEmits<{
   addToPlaylist: []
   openFolder: [subPath?: string]
   openInWorkshop: []
+  openAuthor: []
   previewFile: [file: FileSystemFileHandle]
   keepToast: []
   releaseToast: []
@@ -1044,6 +1053,31 @@ function onImageError(e: Event) {
   background: var(--bg-hover-dark);
   padding: 3px 8px;
   border-radius: 3px;
+}
+
+.panel-author {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 4px 10px;
+  background: rgba(0, 120, 212, 0.08);
+  border-radius: 4px;
+  border: 1px solid rgba(0, 120, 212, 0.2);
+  transition: all 0.15s ease;
+  align-self: flex-start;
+}
+
+.panel-author:hover {
+  background: rgba(0, 120, 212, 0.15);
+  border-color: var(--accent);
+}
+
+.panel-author svg {
+  flex-shrink: 0;
 }
 
 .panel-stats {

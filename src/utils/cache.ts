@@ -82,6 +82,7 @@ export interface WorkshopMetadata {
   updateDate?: number
   youtube?: string
   authorSteamId?: string
+  authorName?: string
   allowMobileUpload?: boolean
   official?: boolean
 }

@@ -44,6 +44,7 @@ export async function loadAndCacheWorkshopCacheJson(fileHandle: FileSystemFileHa
         updateDate: wp.updatedate,
         youtube: wp.youtube,
         authorSteamId: wp.authorsteamid,
+        authorName: wp.authorname,
         allowMobileUpload: wp.allowmobileupload,
         official: wp.official
       })

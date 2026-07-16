@@ -292,6 +292,7 @@
       @add-to-playlist="addToPlaylistFromDetail"
       @open-folder="openFolderFromDetail"
       @open-in-workshop="openInWorkshopFromDetail"
+      @open-author="openAuthorFromDetail"
       @preview-file="previewFile"
       @keep-toast="keepToast"
       @release-toast="releaseToast"
@@ -365,6 +366,13 @@
             <path d="M14 10V7a2 2 0 00-2-2H5"/>
           </svg>
           <span>在创意工坊打开</span>
+        </button>
+        <button v-if="contextMenu.wallpaper?.authorSteamId" class="context-item" @click="openAuthorFromContext">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          <span>查看作者主页</span>
         </button>
         <div class="context-divider"></div>
         <button class="context-item" @click="copyWallpaperPath">
@@ -995,10 +1003,39 @@ function openInWorkshopFromDetail() {
   openWorkshopUrl(workshopId)
 }
 
+function openAuthorFromContext() {
+  if (!contextMenu.wallpaper) return
+  const authorId = contextMenu.wallpaper.authorSteamId
+  if (!authorId) {
+    showToast('该壁纸没有作者信息')
+    return
+  }
+  openAuthorProfile(authorId)
+}
+
+function openAuthorFromDetail() {
+  if (!selectedWallpaper.value) return
+  const authorId = selectedWallpaper.value.authorSteamId
+  if (!authorId) {
+    showToast('该壁纸没有作者信息')
+    return
+  }
+  openAuthorProfile(authorId)
+}
+
+function openAuthorProfile(authorSteamId: string) {
+  const steamUrl = `steam://url/Profile/${authorSteamId}`
+  const webUrl = `https://steamcommunity.com/profiles/${authorSteamId}`
+  openSteamUrlWithFallback(steamUrl, webUrl)
+}
+
 function openWorkshopUrl(workshopId: string) {
   const steamUrl = `steam://url/CommunityFilePage/${workshopId}`
   const webUrl = `https://steamcommunity.com/sharedfiles/filedetails/?id=${workshopId}`
-  
+  openSteamUrlWithFallback(steamUrl, webUrl)
+}
+
+function openSteamUrlWithFallback(steamUrl: string, webUrl: string) {
   window.location.href = steamUrl
   
   const fallbackTimer = setTimeout(() => {

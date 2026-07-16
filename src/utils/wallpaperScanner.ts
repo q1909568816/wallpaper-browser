@@ -47,6 +47,7 @@ export interface WallpaperItem {
   updateDate?: number
   youtube?: string
   authorSteamId?: string
+  authorName?: string
   allowMobileUpload?: boolean
   official?: boolean
 }
@@ -240,6 +241,7 @@ function applyWorkshopMetadata(wallpaper: WallpaperItem): void {
     wallpaper.updateDate = meta.updateDate
     wallpaper.youtube = meta.youtube
     wallpaper.authorSteamId = meta.authorSteamId
+    wallpaper.authorName = meta.authorName
     wallpaper.allowMobileUpload = meta.allowMobileUpload
     wallpaper.official = meta.official
     if (meta.tags && meta.tags.length > 0) {
@@ -457,6 +459,7 @@ function createFallbackWallpaper(folderName: string, dirHandle: FileSystemDirect
     updateDate: workshopMeta?.updateDate,
     youtube: workshopMeta?.youtube,
     authorSteamId: workshopMeta?.authorSteamId,
+    authorName: workshopMeta?.authorName,
     allowMobileUpload: workshopMeta?.allowMobileUpload,
     official: workshopMeta?.official
   }
@@ -1062,6 +1065,10 @@ async function restoreFromCache(dirHandle: FileSystemDirectoryHandle): Promise<b
     state.totalSubdirs = diskNames.size
     state.loadedCount = restored.length
     state.rootDirName = dirHandle.name
+
+    // 重新应用 Workshop 元数据，确保新增字段（如 authorName）能从 IndexedDB 同步到壁纸对象
+    applyBulkWorkshopMetadata()
+
     state.categories = buildCategories(state.wallpapers)
     state.tags = buildTags(state.wallpapers)
     state.contentRatings = buildContentRatings(state.wallpapers)
